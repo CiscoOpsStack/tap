@@ -8,9 +8,8 @@ place. The **resource drawer** answers "what is this row?" beside the list. It s
 page's edge, shows one entity's data grouped into the categories a reader asks about, and closes back to the
 same list. The full object viewer is one link away for the reader who wants to stay.
 
-Cloud-security consoles converged on this shape (Wiz's resource details drawer: overview, related issues,
-relationships, tags, a code trace, and a raw JSON tab). TAP's version derives every category from the grid; no
-category is hand-written per type.
+Cloud-security consoles converged on this shape: overview, related issues, relationships, tags, and a raw
+JSON tab. TAP's version derives every category from the grid; no category is hand-written per type.
 
 The drawer lives in the chrome `overlay` region (`spec-web-chrome.md`). It is an inspection surface, not
 navigation: it never lists pages, so it is outside `req-web-nav-no-hamburger`.
@@ -31,6 +30,7 @@ navigation: it never lists pages, so it is outside `req-web-nav-no-hamburger`.
 | req-web-drawer | [Resource Drawer](#resource-drawer) | Implemented | A right-side, non-modal region in `base.html` that shows one entity, fetched as an HTML fragment |
 | req-web-drawer-fragment | [Drawer Fragment Route](#drawer-fragment-route) | Implemented | `GET /object/<entity_type>/<url_id>/drawer/` returns the drawer body; same authorization as the viewer |
 | req-web-drawer-categories | [Drawer Categories](#drawer-categories) | Implemented | Overview, Findings, Relationships, Configuration, Tags, Provenance, Raw — each derived, each with a three-state empty |
+| req-web-drawer-sections | [Plugin Sections And Graph Link](#plugin-sections-and-graph-link) | Implemented | A plugin registers a drawer section without tap_web importing it; the head links to the entity's neighbourhood graph |
 | req-web-drawer-open | [Opening And State](#opening-and-state) | Implemented | A table row (or any `[data-tap-drawer]` link) opens it; `?drawer=<entity_id>` restores it; Back and Escape close it |
 
 ## Requirements
@@ -40,8 +40,6 @@ navigation: it never lists pages, so it is outside `req-web-nav-no-hamburger`.
 RID: `req-web-drawer`
 
 Status: `Implemented`
-
-Trace: `non-python` — tap_web/templates/tap_web/base.html, tap_web/static/tap_web/js/drawer.js
 
 #### Implementation
 - One `<aside id="tap-drawer" role="region" aria-labelledby="tap-drawer-title" hidden>` in `base.html`, after `<main>`, rendered only for a caller with `grid.read`.
@@ -100,6 +98,26 @@ Each category is a `<section>` with a heading and a count; an empty category say
 | req-web-drawer-categories-2 | Findings From Edges | Implemented | An incoming `CONCERNS_RESOURCE*` edge appears under Findings, not Relationships. | `tap_web/tests/test_drawer.py` |
 | req-web-drawer-categories-3 | Empty Is Stated | Implemented | A category with nothing to show renders a sentence. | `tap_web/tests/test_drawer.py` |
 | req-web-drawer-categories-4 | Overview Identifies | Implemented | A single outgoing `CONCERNS_RESOURCE*` edge leads Overview as "Resource"; a single outgoing account or region edge becomes an Overview row labelled with the neighbour's type name; neighbour links show type display names, not slugs; field labels keep acronyms upper-case (`Private IP`, not `Private Ip`). | `tap_web/tests/test_drawer.py` |
+| req-web-drawer-categories-5 | Context Rows Lead Somewhere | Implemented | The Overview "Resource", account and region rows are links that open that neighbour in the drawer (Cmd-click opens its page), so a finding reaches its resource in one interaction. | `tap_web/tests/test_drawer.py` |
+
+### Plugin Sections And Graph Link
+----
+RID: `req-web-drawer-sections`
+
+Status: `Implemented`
+
+#### Implementation
+A plugin calls `tap_web.drawer.register_drawer_section(key, builder)` in its `ready()`. For each drawer, `builder(entity_type, entity_id, obj)` returns a `DrawerSection` (title, rows of label, text and optional link, an empty sentence, an optional note) or `None` to stay out. Sections render after Findings, in key order, each with a tab and a count, marked `data-tap-drawer-extra` so the seven derived categories keep their order. A builder that raises is logged and left out; the drawer still renders.
+
+The head carries "Show on graph", which opens the entity viewer at its neighbourhood-graph slot (`#slot-graph`); every page slot carries `id="slot-<slot>"`, so any panel can be linked to.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-drawer-sections-1 | Registered Sections Render | Implemented | A registered section renders after Findings with a tab, its rows and its links; returning `None` omits it. | `tap_web/tests/test_drawer.py` |
+| req-web-drawer-sections-2 | A Failing Section Is Contained | Implemented | A builder that raises is left out and the drawer still returns 200. | `tap_web/tests/test_drawer.py` |
+| req-web-drawer-sections-3 | Show On Graph | Implemented | The drawer head links to the entity viewer's graph slot. | `tap_web/tests/test_drawer.py` |
 
 ### Opening And State
 ----
@@ -107,7 +125,7 @@ RID: `req-web-drawer-open`
 
 Status: `Implemented`
 
-Trace: `non-python` — tap_web/static/tap_web/js/drawer.js, tap_web/static/tap_web/js/panel-table.js
+Trace: `non-python` — tap_web/static/tap_web/js/drawer.js
 
 #### Implementation
 - A table with a `drawer` config dispatches `tap:row-activate` on a plain row click (`req-web-stdpanel-table-row-nav-5`); `drawer.js` handles it. Any element with `data-tap-drawer="<fragment url>"` opens it too (drawer links inside the drawer).

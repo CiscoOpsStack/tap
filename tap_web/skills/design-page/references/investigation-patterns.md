@@ -1,9 +1,9 @@
 # Investigation patterns → TAP panel config
 
-Reference for [`design-page`](../SKILL.md) Step 5. The patterns are drawn from **public** descriptions of how a
-cloud-security graph product (Wiz) organizes investigation; no product code, styles or assets are reproduced,
-and nothing here came from a customer tenant. Status per pattern: *documented* (vendor blog), *reported*
-(third-party walkthrough or designer portfolio). Sources are listed at the foot.
+Reference for [`design-page`](../SKILL.md) Step 5. The patterns are drawn from **public** descriptions of how
+cloud-security consoles organize an investigation; no vendor code, styles or assets are reproduced, and
+nothing here came from a customer tenant. Status per pattern: *documented* (vendor writing), *reported*
+(third-party walkthrough or designer portfolio).
 
 Every mapping below uses standard panels and GRIFT only, and every Gryphon form was run against a live grid
 before it was written down (2026-11).
@@ -120,10 +120,6 @@ text.
 
 ## Sources
 
-- Wiz blog: <https://www.wiz.io/blog/the-anatomy-of-a-toxic-combination-of-risk>,
-  <https://www.wiz.io/blog/wiz-sensitive-data-security>, <https://www.wiz.io/blog/introducing-wiz-service-catalog>,
-  <https://www.wiz.io/blog/operationalize-vulnerability-remediation>
-- Walkthroughs: <https://ai.techclick.in/blog/wiz_evidence_desk>, <https://ai.techclick.in/blog/wiz_session_factory>
-- UX research: <https://www.aledlie.com/reports/wiz-io-security-explainability-ux/>
-- Designer portfolio: <https://www.yaronazulay.com/wiz-portal>
-- Interaction rules: Vercel web interface guidelines (public).
+Public vendor writing, third-party walkthroughs, and designer portfolios describing cloud-security
+investigation. The vendor is not named here, and none of its code, styles, or assets are copied.
+Interaction rules also follow the public Vercel web interface guidelines.

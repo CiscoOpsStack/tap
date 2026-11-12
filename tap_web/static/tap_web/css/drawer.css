@@ -90,7 +90,8 @@
   flex: none;
 }
 
-.tap-drawer-open {
+.tap-drawer-open,
+.tap-drawer-graph {
   font-size: 0.8125rem;
   color: rgb(var(--tap-indigo-700));
   text-decoration: underline;
@@ -123,6 +124,8 @@
 
 .tap-drawer-close:focus-visible,
 .tap-drawer-open:focus-visible,
+.tap-drawer-graph:focus-visible,
+.tap-drawer-dl a:focus-visible,
 .tap-drawer-tabs a:focus-visible,
 .tap-drawer-links a:focus-visible {
   outline: 2px solid rgb(var(--tap-indigo-500));
@@ -212,6 +215,11 @@
   margin: 0;
   color: rgb(var(--tap-slate-900));
   overflow-wrap: anywhere;
+}
+
+.tap-drawer-dl dd a {
+  color: rgb(var(--tap-indigo-700));
+  text-decoration: underline;
 }
 
 .tap-drawer-mono,
