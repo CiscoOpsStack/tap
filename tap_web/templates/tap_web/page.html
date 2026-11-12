@@ -50,7 +50,7 @@
     {# height it does not have shows nothing at all. `vh` rows are definite on any page    #}
     {# and are untouched. A percentage min-height does not rescue this — it resolves       #}
     {# against the same indefinite parent (measured, tap#416).                             #}
-    <div class="tap-panel-slot"
+    <div class="tap-panel-slot" id="slot-{{ row.panel_id }}"
          data-row-height="{{ row.height }}"
          style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }}; min-width: 0;{% if row.height == 'auto' or row.unbounded_fr %} flex: 0 0 auto;{% elif row.is_fill %} flex: 1 1 0; min-height: var(--tap-fill-min, 24rem); overflow-y: auto;{% elif 'vh' in row.height %} flex: 0 0 {{ row.height }}; min-height: 0; overflow-y: auto;{% else %} flex: {{ row.height|slice:':-2' }} 1 0; min-height: 0; overflow-y: auto;{% endif %}">
       {% if not row.panel_url_id %}

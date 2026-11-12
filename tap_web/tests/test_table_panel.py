@@ -44,7 +44,7 @@ def _create_table_panel(**kwargs) -> Panel:
     return Panel.objects.create(**defaults)
 
 
-def _create_search(**kwargs):
+def _create_search(**kwargs: Any) -> Any:
     from tap_grid.models import Search
 
     defaults = {
@@ -957,7 +957,7 @@ class TestTablePanelEditForm:
 class TestTablePanelIconEnrichment:
     """Nodes returned by get_view_context carry icon_url for display."""
 
-    def _seed_fixture_entity_types(self):
+    def _seed_fixture_entity_types(self) -> None:
         """Seed grid_fixtures EntityType records without re-registering edge constraints."""
         from django.apps import apps
         from django.utils.module_loading import import_string
@@ -1401,7 +1401,7 @@ class TestStripedConfig:
     @pytest.mark.parametrize(("config", "expected"), [({"striped": True}, True), ({"striped": False}, False), ({}, False)])
     def test_the_mount_carries_the_stripe_class_only_when_asked(self, config, expected):
         panel = _create_table_panel(config=config)
-        _link_search(panel, _create_search())  # type: ignore[no-untyped-call]
+        _link_search(panel, _create_search())
         fake_envelope: dict[str, Any] = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=fake_envelope):
             response = make_admin_client(username="table-admin").get(_panel_url(panel))
@@ -1435,7 +1435,7 @@ class TestRowsSelectorAndEmptyText:
     @pytest.mark.parametrize(("config", "has_all"), [({"show_all_rows": False}, False), ({"show_all_rows": True}, True), ({}, True)])
     def test_the_rendered_selector_follows_the_option(self, config, has_all):
         panel = _create_table_panel(config=config)
-        _link_search(panel, _create_search())  # type: ignore[no-untyped-call]
+        _link_search(panel, _create_search())
         envelope: dict[str, Any] = {"nodes": [], "edges": [], "info": {"total_count": 217}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=envelope):
             content = make_admin_client(username="table-admin").get(_panel_url(panel) + "?page_size=0").content.decode()
@@ -1455,7 +1455,7 @@ class TestRowsSelectorAndEmptyText:
     @pytest.mark.parametrize(("config", "expected"), [({"empty_text": 'Nothing <b>here</b> "yet"'}, True), ({}, False)])
     def test_the_mount_carries_the_escaped_empty_text_only_when_set(self, config, expected):
         panel = _create_table_panel(config=config)
-        _link_search(panel, _create_search())  # type: ignore[no-untyped-call]
+        _link_search(panel, _create_search())
         envelope: dict[str, Any] = {"nodes": [], "edges": [], "info": {}, "warnings": {}}
         with patch("tap_grid.search.execute_search", return_value=envelope):
             content = make_admin_client(username="table-admin").get(_panel_url(panel)).content.decode()

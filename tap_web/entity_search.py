@@ -58,7 +58,7 @@ def _rank(name: str, term: str) -> int:
 def search_entities(term: str, limit: int = DEFAULT_LIMIT) -> list[EntityHit]:
     """Domain entities matching ``term``, best first; empty for a term shorter than two characters.
 
-    TAP-IMPLEMENTS: req-web-nav-command-palette@feedec1b917b/dab32a8ba2a2 (derivation) — the entity index behind the palette:
+    TAP-IMPLEMENTS: req-web-nav-command-palette@4a1e9f31303e/1d65f4358612 (derivation) — the entity index behind the palette:
         name or entity id, plugin-declared types only, exact then prefix then substring.
 
     The caller must already hold ``grid.read``.

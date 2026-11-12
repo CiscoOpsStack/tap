@@ -20,7 +20,7 @@
   {% for col in band.columns %}
   <div class="tap-col" style="display: flex; flex-direction: column; gap: 1rem;">
     {% for row in col.rows %}
-    <div class="tap-panel-slot"
+    <div class="tap-panel-slot" id="slot-{{ row.panel_id }}"
          style="grid-row: span {{ row.row_span }}; grid-column: span {{ row.col_span }};">
       {% if not row.has_panel %}
       <div class="text-slate-400 text-sm p-4 border border-dashed border-slate-300 rounded">

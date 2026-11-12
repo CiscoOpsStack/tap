@@ -153,6 +153,17 @@
     return out.slice(0, wantsScope ? 12 : 4);
   }
 
+  // Platform tools reached from the palette rather than the chrome (req-web-nav-no-hamburger-3).
+  var TOOLS = [
+    { label: "Build a query", hint: "Find resources by type, relationship and field", url: "/__query/", words: "build a query builder find search graph relationship" },
+  ];
+
+  function toolCommands(q) {
+    return TOOLS.filter(function (t) { return !q || t.words.indexOf(q) !== -1; }).map(function (t) {
+      return { kind: "command", group: "Commands", label: t.label, hint: t.hint, url: t.url };
+    });
+  }
+
   function buildResults(query) {
     var q = query.trim().toLowerCase();
     var out = [];
@@ -161,6 +172,7 @@
         out.push({ kind: "recent", group: "Recent", label: r.title, hint: r.url, url: r.url });
       });
       scopeCommands("").forEach(function (c) { c.group = "Commands"; out.push(c); });
+      toolCommands("").forEach(function (c) { out.push(c); });
       treePages().forEach(function (t) {
         out.push({ kind: "page", group: "Pages", label: t.page.name || t.page.url, hint: t.page.url, url: t.page.url, depth: t.depth });
       });
@@ -183,6 +195,7 @@
       });
     }
     scopeCommands(q).forEach(function (c) { c.group = "Commands"; out.push(c); });
+    if (q.length >= 2) toolCommands(q).forEach(function (c) { out.push(c); });
     return out;
   }
 
@@ -397,7 +410,7 @@
   }
 
   function run(item, event) {
-    if (item.kind === "command") {
+    if (item.kind === "command" && item.action) {
       closePalette();
       setScope(item.action);
       return;
