@@ -378,7 +378,7 @@ def build_nav_tree(current_path: str) -> list[NavNode]:
 
 
 def nav_tree(request: HttpRequest) -> dict[str, object]:
-    """Context processor: the structural sidebar tree, built only when a template reads it.
+    """Context processor: the structural sidebar tree, built only when a template reads it, and the scope lens.
 
     Panel fragments render through the same processors and never show the sidebar, so the
     two queries run lazily, on first use by ``base.html``.
@@ -387,9 +387,12 @@ def nav_tree(request: HttpRequest) -> dict[str, object]:
 
     from tap_grid.read_guard import caller_can_read
 
+    from tap_web.scope import read_scope
+
     return {
         "nav_tree": SimpleLazyObject(lambda: build_nav_tree(request.path)),
         "grid_readable": SimpleLazyObject(lambda: _Flag(caller_can_read())),
+        "tap_scope": read_scope(getattr(request, "session", None)),
     }
 
 

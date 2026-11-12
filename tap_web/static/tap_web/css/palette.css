@@ -80,19 +80,76 @@
 
 .tap-palette-result-url {
   font-size: 0.8rem;
-  color: rgb(var(--tap-slate-500));
+  color: rgb(var(--tap-slate-600));
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   margin-left: auto;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tap-palette-result--resource .tap-palette-result-url,
+.tap-palette-result--command .tap-palette-result-url {
+  font-family: inherit;
+}
+
+.tap-palette-group {
+  padding: 0.6rem 0.75rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--tap-slate-600));
+}
+
+.tap-palette-foot {
+  padding: 0.45rem 1rem;
+  border-top: 1px solid rgb(var(--tap-slate-200));
+  font-size: 0.75rem;
+  color: rgb(var(--tap-slate-600));
 }
 
 .tap-palette-empty {
   padding: 1.25rem 1rem;
   text-align: center;
-  color: rgb(var(--tap-slate-500));
+  color: rgb(var(--tap-slate-600));
   font-size: 0.9rem;
   font-style: italic;
+}
+
+/* Scope lens bar (req-web-nav-scope-lens): above the page content while a scope is set. */
+.tap-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgb(var(--tap-indigo-300));
+  border-radius: 8px;
+  background: rgb(var(--tap-indigo-50));
+  color: rgb(var(--tap-indigo-800));
+  font-size: 0.85rem;
+}
+
+.tap-scope-clear {
+  border: 1px solid rgb(var(--tap-indigo-300));
+  border-radius: 6px;
+  background: rgb(var(--tap-white));
+  color: rgb(var(--tap-indigo-700));
+  padding: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tap-scope-clear:hover { background: rgb(var(--tap-indigo-100)); }
+
+.tap-table-scope-note {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  color: rgb(var(--tap-slate-600));
 }
 
 /* Chrome affordance button (lives next to the session tag). */
