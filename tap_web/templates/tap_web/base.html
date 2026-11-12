@@ -84,7 +84,7 @@
                     <button type="button"
                             data-tap-palette-affordance
                             class="tap-palette-affordance"
-                            title="Search pages (⌘K)"
+                            title="Search pages and resources (⌘K)"
                             aria-label="Open command palette">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <circle cx="11" cy="11" r="7"/>
@@ -167,6 +167,16 @@
         {# edge-to-edge, very wide monitors get hemmed in to a readable measure. The cap #}
         {# is screen-independent — it bounds the content, the viewport drives the rest. #}
         <div class="py-6 px-4 sm:px-6 lg:px-8 w-full flex flex-col{% if full_bleed or fill_viewport %} flex-1 min-h-0{% endif %}{% if not full_bleed %} max-w-[1700px] mx-auto{% endif %}">
+            {# Scope lens (req-web-nav-scope-lens): shown only while a scope is set; set from the palette, cleared here. #}
+            {% if tap_scope and grid_readable %}
+            <form class="tap-scope-bar" method="post" action="{% url 'scope' %}" data-tap-scope-bar>
+                {% csrf_token %}
+                <input type="hidden" name="clear" value="1">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <span>Scoped to <strong>{{ tap_scope.text }}</strong>. Tables leave out rows from elsewhere.</span>
+                <button type="submit" class="tap-scope-clear">Clear scope</button>
+            </form>
+            {% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>

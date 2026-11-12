@@ -511,6 +511,29 @@ class TestTablePanelViewContext:
         payload = rendered.split(">", 1)[1].rsplit("</script>", 1)[0]
         assert isinstance(json.loads(payload), list)
 
+    @pytest.mark.spec("req-web-nav-scope-lens-2")
+    def test_scope_lens_leaves_out_other_scope_rows_and_counts_them(self):
+        from django.test import RequestFactory
+
+        from tap_web.scope import Scope, write_scope
+
+        panel = _create_table_panel()
+        search = _create_search()
+        _link_search(panel, search)
+        envelope = {"nodes": [{"entity_id": "in"}, {"entity_id": "out"}], "edges": [], "info": {}, "warnings": {}}
+        request = RequestFactory().get(_panel_url(panel))
+        request.session = {}
+        write_scope(request.session, Scope("aws_account", "111", "stage"))
+        dims = {"in": {"aws_account": "111"}, "out": {"aws_account": "222"}}
+        with (
+            patch("tap_grid.search.execute_search", return_value=envelope),
+            patch("tap_web.scope._dimensions", lambda ids: {i: dims[i] for i in ids}),
+        ):
+            ctx = TablePanelType.get_view_context(panel, request)
+        assert [n["entity_id"] for n in ctx["table_nodes"]] == ["in"]
+        assert ctx["table_meta"]["scope_hidden"] == 1
+        assert ctx["table_meta"]["scope_text"] == "stage (111)"
+
     def test_meta_populated_with_total_count_and_page_size(self):
         panel = _create_table_panel()
         search = _create_search()

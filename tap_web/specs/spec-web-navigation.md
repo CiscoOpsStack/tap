@@ -34,7 +34,8 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-segment-interactions | [Segment Interactions](#segment-interactions) | Implemented | Single-click navigates; chevron-click shows immediate sibling popover; alt-click opens expanded column-view |
 | req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Implemented | Each URL segment is a breadcrumb level unless an explicit `NESTS_UNDER` parent overrides it (`req-web-nav-explicit-parent-edge`) |
 | req-web-nav-explicit-parent-edge | [Explicit Parent Edge](#explicit-parent-edge) | Implemented | A `NESTS_UNDER` edge from one Page to another moves the source page under the target in every navigation surface; URLs never change |
-| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K + chrome affordance + Pages index landed; entity / recent-visits / migrated-chrome indexing still Proposed (ACIDs -3 + -4) |
+| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K, chrome affordance, and the Pages, Resources, Recent and Commands groups landed; migrated chrome (ACID -4) still Proposed |
+| req-web-nav-scope-lens | [Scope Lens](#scope-lens) | Implemented | One session-held dimension filter (for example an AWS account) narrows every table panel server-side; set from the palette, shown and cleared from a bar above the content |
 | req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Backlog | Reserved chrome slot held; mini-graph itself is backlog pending sibling `spec-viz-mini-map.md` |
 | req-web-nav-user-menu | [User Menu](#user-menu) | Implemented | Avatar + identity + Sign out in the upper-right; consumes the auth identity (`request.user`), logs out via `tap_auth` `/auth/logout/` |
 | req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Implemented | Hard prohibition on hamburger / overflow / hand-curated menus; the derived sidebar (`req-web-nav-sidebar`) is the one structural exception |
@@ -226,7 +227,7 @@ Status: `In Development`
 
 MVP scope landed (Phase 4 + palette tree mode in Phase 6): Cmd-K binding, header affordance button, fuzzy-search input, tree-mode rendering of every registered Page on empty query, flat ranked list on typed query, click-or-Enter to navigate, click-outside/Esc to dismiss. Implementation in `tap_web/static/tap_web/js/palette.js` + `tap_web/static/tap_web/css/palette.css`.
 
-ACIDs -1 (Keyboard Summonable) and -2 (Header Affordance) are `Implemented`. ACIDs -3 (Indexes Pages And Entities) and -4 (Subsumes Migrated Chrome) stay `Proposed`: the palette currently indexes Pages only, not entities / recent visits / platform commands, and the three placeholder chrome icons (admin / history / layers) were removed in Phase 2 but not yet re-added as palette commands. Promoting -3 and -4 is the next palette work block.
+ACIDs -1 (Keyboard Summonable), -2 (Header Affordance) and -3 (Indexes Pages And Entities) are `Implemented`. The palette groups results as Recent (the last 10 pages and drawers opened, kept in browser `localStorage`), Commands (the scope lens of `req-web-nav-scope-lens`), Pages, and Resources (TAP entities by name, natural key, ARN fragment or entity id, from `/__entity-search.json`). ACID -4 (Subsumes Migrated Chrome) stays `Proposed`: the history and layers controls are not yet palette commands.
 
 A keyboard-summonable command palette (Cmd-K on macOS, Ctrl-K elsewhere) is the platform-level reach-anywhere surface. Everything not reachable through the breadcrumb path is reachable through the palette. Detailed behavior of the palette itself lives in a sibling spec (`tap_web/specs/spec-web-command-palette.md`); this requirement enumerates only the palette's *contract with the navigation system*.
 
@@ -249,13 +250,42 @@ For AI consumers, the palette is the primary cross-context action surface: a tex
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-nav-command-palette-1 | Keyboard Summonable | Implemented | The palette opens via Cmd-K (macOS) or Ctrl-K (other platforms) from any TAP page. | Vanilla keydown listener in `palette.js`. |
-| req-web-nav-command-palette-2 | Header Affordance | Implemented | A visible header affordance opens the palette and communicates the keyboard shortcut. | 🔍 + `⌘K` chip in the chrome (`tap-palette-affordance` class), `title="Search pages (⌘K)"`. |
-| req-web-nav-command-palette-3 | Indexes Pages And Entities | Proposed | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | Pages indexing landed; entities + recent + commands are next-iteration work. |
+| req-web-nav-command-palette-2 | Header Affordance | Implemented | A visible header affordance opens the palette and communicates the keyboard shortcut. | 🔍 + `⌘K` chip in the chrome (`tap-palette-affordance` class), `title="Search pages and resources (⌘K)"`. |
+| req-web-nav-command-palette-3 | Indexes Pages And Entities | Implemented | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | Entities come from `/__entity-search.json` (`tap_web/entity_search.py`): plugin domain types only, matched on name, natural key or entity id, exact then prefix first, gated on `grid.read`. Enter opens the resource drawer; Shift-Enter opens the full page. `tap_web/tests/test_entity_search_and_scope.py`. |
 | req-web-nav-command-palette-4 | Subsumes Migrated Chrome | Proposed | The clock/history, layers/dimension, and user/account controls that today live in the header bar move into the palette. | Migration paused: the three placeholder icons were deleted in Phase 2 without being re-added as palette commands. Requires the platform-commands surface that ACID-3's "commands" portion would bring. |
 
 #### Future
 
 Plugin-contributed commands (each plugin can register palette commands that operate in its domain) — sibling-spec concern. Per-context palette filtering ("only search within the current breadcrumb subtree") — sibling-spec concern.
+
+### Scope Lens
+----
+RID: `req-web-nav-scope-lens`
+
+Status: `Implemented`
+
+#### Status Details
+
+`tap_web/scope.py` holds the lens; `/__scope.json` reads and sets it; the table panel applies it; `base.html` renders the scope bar. Tests: `tap_web/tests/test_entity_search_and_scope.py`.
+
+An operator working one account or region should not have to re-filter every table. The scope lens is one dimension key and value (for example `aws_account = 123456789012`) held in the session. While it is set, every table panel leaves out rows whose entity carries that dimension key with a different value, and says how many it left out.
+
+#### Implementation
+
+- The offered scopes are the entity dimension keys that carry at least two values across live entities, excluding reserved `tap.` keys. A plugin may register a labeler that names the values (for example an account id by its account name).
+- The palette lists the offered scopes as commands (type `scope` to see them all) and a Clear scope command while one is set. Nothing is added to the header chrome (`req-web-nav-chrome-budget`, `req-web-nav-no-hamburger-3`).
+- The filter is applied server-side in the table panel before facets and counts, so totals, facets and the visible rows agree.
+- Rows with no entity, or whose entity lacks the scoped key, are kept: the lens narrows, it never hides what it cannot judge.
+- The scope is advisory display state. It is not an authorization boundary and does not change what a caller may read.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-scope-lens-1 | Offered Scopes Come From Dimensions | Implemented | The offered scopes are the non-reserved dimension keys with two or more values; plugin labelers name the values. | `scope_options()`, `register_scope_labeler()`. |
+| req-web-nav-scope-lens-2 | Tables Leave Out Other-Scope Rows | Implemented | A table panel leaves out rows whose entity has the scoped key with another value, keeps rows it cannot judge, and shows a note with the count left out. | `apply_scope()`; the row's entity is the drawer `id_field`, else `entity_id`. |
+| req-web-nav-scope-lens-3 | Set And Clear Through One Endpoint | Implemented | `POST /__scope.json` sets a scope from the offered list (anything else is refused with 400) or clears it with `clear=1`; `GET` returns the active scope and options. Gated on `grid.read`. | |
+| req-web-nav-scope-lens-4 | Visible While Active | Implemented | While a scope is set, a bar above the content names it and offers Clear scope; a form post returns only to a same-origin `next`. | `url_has_allowed_host_and_scheme`. |
 
 
 ### Mini-Graph Affordance
