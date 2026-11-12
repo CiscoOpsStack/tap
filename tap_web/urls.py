@@ -25,6 +25,8 @@ urlpatterns = [
     path("object/<str:entity_type>/<str:object_url_id>/drawer/", views.object_drawer_view, name="object-drawer"),
     path("object/<str:entity_type>/<str:object_url_id>/", views.object_view, name="object-view"),
     path("__nav-index.json", views.nav_index_view, name="nav-index"),
+    path("__entity-search.json", views.entity_search_view, name="entity-search"),
+    path("__scope.json", views.scope_view, name="scope"),
     path("", views.landing_view, name="landing"),
     # samsite per-type viewer pages — entity_type is pinned per route so the
     # shared viewer_panel resolves the right model from <uuid:entity_id>.

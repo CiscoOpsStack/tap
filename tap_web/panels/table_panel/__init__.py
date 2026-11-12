@@ -638,6 +638,13 @@ class TablePanelType:
                 **_script_ids(panel),
             }
 
+        from tap_web.scope import apply_scope, read_scope
+
+        scope = read_scope(getattr(request, "session", None))
+        drawer_cfg = config.get("drawer") if isinstance(config.get("drawer"), dict) else {}
+        scope_id_field = str(drawer_cfg.get("id_field") or "")
+        scope_hidden = 0
+
         # Extract nodes and total count from paginated or unpaginated envelope.
         envelope = result["results"] if "results" in result else result
         custom_columns = config.get("columns")
@@ -645,6 +652,7 @@ class TablePanelType:
         page_limit = effective_limit
         projection = _projection_rows(envelope)
         if projection is not None:
+            projection, scope_hidden = apply_scope(projection, scope, scope_id_field)
             # Projection mode (tap#432): the search RETURNs aliases, so the
             # envelope carries `rows` and no nodes. execute_search pages only
             # the node side, and a Gryphon search executes whole, so `rows` is
@@ -669,6 +677,8 @@ class TablePanelType:
             nodes = result.get("nodes", [])
             total_count = result.get("info", {}).get("total_count", len(nodes))
         if table_mode == "node":
+            nodes, scope_hidden = apply_scope(nodes, scope, scope_id_field)
+            total_count -= scope_hidden
             # A node page: filters the Search did not take as inputs narrow the loaded rows only.
             facet_rows = nodes
             filters_partial = bool(filter_specs) and total_count > len(nodes)
@@ -688,6 +698,8 @@ class TablePanelType:
             "has_next": page_limit is not None and (offset + page_limit) < total_count,
             "prev_offset": max(0, offset - (page_limit or 0)),
             "next_offset": offset + (page_limit or 0),
+            "scope_hidden": scope_hidden,
+            "scope_text": scope.text if scope else "",
         }
 
         group_by = resolve_group(config.get("group_by"), request.GET)

@@ -33,6 +33,7 @@
     {% else %}
 
     {% if table_filter_bar %}{% include "tap_web/panels/_table_filter_bar.html" %}{% endif %}
+    {% if table_meta.scope_hidden %}<p class="tap-table-scope-note" data-tap-scope-note>Scope {{ table_meta.scope_text }} hides {{ table_meta.scope_hidden }} row{{ table_meta.scope_hidden|pluralize }}.</p>{% endif %}
 
     {# Tabulator mount point. data-tap-table-panel-id links to the JSON data block below. #}
     <div data-tap-table-mount

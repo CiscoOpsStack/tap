@@ -125,7 +125,12 @@ ACRONYMS = frozenset(
 
 def field_label(field: Any) -> str:
     """A field's reader-facing label: words capitalised, acronyms upper-cased ("private_ip" -> "Private IP")."""
-    words = str(field.verbose_name or field.name).replace("_", " ").split()
+    return humanize(str(field.verbose_name or field.name))
+
+
+def humanize(name: str) -> str:
+    """``aws_account`` -> ``AWS Account``: the label rule of :func:`field_label` for any snake-case name."""
+    words = name.replace("_", " ").split()
 
     def word(w: str) -> str:
         low = w.lower()
