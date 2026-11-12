@@ -1,0 +1,116 @@
+{% extends "tap_web/base.html" %}
+{% load static %}
+{# Visual query builder (spec-web-query-builder.md): find a type, follow relationships, add conditions. Read-only. #}
+
+{% block title %}Query builder — {{ product_name }}{% endblock %}
+
+{% block head_extras %}<link rel="stylesheet" href="{% static 'tap_web/css/query-builder.css' %}">{% endblock %}
+
+{% block content %}
+<div class="tap-qb">
+    <header class="tap-qb-head">
+        <h1 class="tap-qb-title">Query builder</h1>
+        <p class="tap-qb-lede">Find resources by type, follow their relationships, and narrow by field. Every step is in the address, so a query is a link. Nothing here changes the grid.</p>
+    </header>
+
+    {% if error %}<p class="tap-qb-error" role="alert">{{ error }}</p>{% endif %}
+
+    <section class="tap-qb-step" aria-labelledby="tap-qb-find-h">
+        <h2 id="tap-qb-find-h" class="tap-qb-step-title"><span class="tap-qb-step-no">1</span> Find</h2>
+        <form method="get" action="{% url 'query-builder' %}" class="tap-qb-row">
+            <label class="tap-qb-label" for="tap-qb-type">Resource type</label>
+            <select id="tap-qb-type" name="t" class="tap-qb-select">
+                <option value="">Choose a type…</option>
+                {% for t in types %}<option value="{{ t.slug }}"{% if t.slug == spec.start_type %} selected{% endif %}>{{ t.name }} ({{ t.count }})</option>{% endfor %}
+            </select>
+            <button type="submit" class="tap-qb-button">{% if spec.start_type %}Start over with this type{% else %}Find{% endif %}</button>
+        </form>
+    </section>
+
+    {% if spec.start_type %}
+    <section class="tap-qb-step" aria-labelledby="tap-qb-rel-h">
+        <h2 id="tap-qb-rel-h" class="tap-qb-step-title"><span class="tap-qb-step-no">2</span> Follow relationships <span class="tap-qb-optional">optional</span></h2>
+        <ol class="tap-qb-chain">
+            <li class="tap-qb-chip tap-qb-chip--start">{{ start_name }}</li>
+            {% for hop in hops %}
+                <li class="tap-qb-chip">{{ hop.label }} <a class="tap-qb-remove" href="?{{ hop.remove }}" aria-label="Remove the step to {{ hop.type_name }} and the steps after it">Remove</a></li>
+            {% endfor %}
+        </ol>
+        {% if hop_options %}
+        <form method="get" action="{% url 'query-builder' %}" class="tap-qb-row">
+            <input type="hidden" name="t" value="{{ spec.start_type }}">
+            {% for h in hidden_hops %}<input type="hidden" name="h" value="{{ h }}">{% endfor %}
+            {% for c in hidden_conditions %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}
+            <label class="tap-qb-label" for="tap-qb-hop">Then</label>
+            <select id="tap-qb-hop" name="h" class="tap-qb-select">
+                <option value="">Choose a relationship…</option>
+                {% for o in hop_options %}<option value="{{ o.value }}">{{ o.label }} ({{ o.count }})</option>{% endfor %}
+            </select>
+            <button type="submit" class="tap-qb-button">Add step</button>
+        </form>
+        {% elif hops|length < 3 %}
+        <p class="tap-qb-hint">Nothing in the grid connects to this type, so there is no relationship to follow.</p>
+        {% endif %}
+    </section>
+
+    <section class="tap-qb-step" aria-labelledby="tap-qb-where-h">
+        <h2 id="tap-qb-where-h" class="tap-qb-step-title"><span class="tap-qb-step-no">3</span> Where <span class="tap-qb-optional">optional</span></h2>
+        {% if conditions %}
+        <ul class="tap-qb-conds">
+            {% for c in conditions %}<li class="tap-qb-chip">{{ c.text }} <a class="tap-qb-remove" href="?{{ c.remove }}" aria-label="Remove the condition {{ c.text }}">Remove</a></li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% if field_groups %}
+        <form method="get" action="{% url 'query-builder' %}" class="tap-qb-row">
+            <input type="hidden" name="t" value="{{ spec.start_type }}">
+            {% for h in hidden_hops %}<input type="hidden" name="h" value="{{ h }}">{% endfor %}
+            {% for c in hidden_conditions %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}
+            <label class="tap-qb-label" for="tap-qb-field">Field</label>
+            <select id="tap-qb-field" name="cv" class="tap-qb-select">
+                {% for g in field_groups %}<optgroup label="{{ g.type_name }}">{% for f, label in g.fields %}<option value="{{ g.var }}.{{ f }}">{{ g.type_name }}: {{ label }}</option>{% endfor %}</optgroup>{% endfor %}
+            </select>
+            <label class="tap-qb-label" for="tap-qb-op">Test</label>
+            <select id="tap-qb-op" name="co" class="tap-qb-select tap-qb-select--narrow">
+                {% for key, label in operators %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+            </select>
+            <label class="tap-qb-label" for="tap-qb-value">Value</label>
+            <input id="tap-qb-value" name="cval" class="tap-qb-input" autocomplete="off" placeholder="for example CRITICAL">
+            <button type="submit" class="tap-qb-button">Add condition</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <section class="tap-qb-step" aria-labelledby="tap-qb-results-h">
+        <h2 id="tap-qb-results-h" class="tap-qb-step-title"><span class="tap-qb-step-no">4</span> Results <span class="tap-qb-count">{{ rows|length }}{% if rows|length >= row_limit %}+{% endif %}</span></h2>
+        {% if rows %}
+        <div class="tap-qb-table-wrap">
+            <table class="tap-qb-table">
+                <thead><tr>{% for col in columns %}<th scope="col">{{ col.title }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                    {% for cells in rows %}<tr>{% for cell in cells %}<td>{% if cell.page_url %}<a href="{{ cell.page_url }}" data-tap-drawer="{{ cell.drawer_url }}">{{ cell.text }}</a>{% else %}{{ cell.text|default:"—" }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if rows|length >= row_limit %}<p class="tap-qb-hint">Showing the first {{ row_limit }} matches. Add a condition to narrow the list.</p>{% endif %}
+        {% elif not error %}
+        <p class="tap-qb-hint">No {{ start_name }} matches this query. Remove a step or a condition to widen it.</p>
+        {% endif %}
+    </section>
+
+    <section class="tap-qb-step" aria-labelledby="tap-qb-save-h">
+        <h2 id="tap-qb-save-h" class="tap-qb-step-title"><span class="tap-qb-step-no">5</span> Keep it</h2>
+        <form method="get" action="{% url 'query-export' %}" class="tap-qb-row">
+            <input type="hidden" name="t" value="{{ spec.start_type }}">
+            {% for h in hidden_hops %}<input type="hidden" name="h" value="{{ h }}">{% endfor %}
+            {% for c in hidden_conditions %}<input type="hidden" name="c" value="{{ c }}">{% endfor %}
+            <label class="tap-qb-label" for="tap-qb-name">Name</label>
+            <input id="tap-qb-name" name="name" class="tap-qb-input" value="{{ start_name }} query" maxlength="120">
+            <button type="submit" class="tap-qb-button">Download as a saved search</button>
+            <a class="tap-qb-link" href="?{{ canonical }}">Link to this query</a>
+        </form>
+        <p class="tap-qb-hint">The download is a GRIFT file holding one search. Importing it adds the search to TAP, where a table panel can use it.</p>
+        <details class="tap-qb-gryphon"><summary>Show the Gryphon query</summary><pre>{{ gryphon }}</pre></details>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
