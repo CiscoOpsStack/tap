@@ -12,13 +12,19 @@ adds nothing to get a drawer. A model may refine two things by declaration:
 from __future__ import annotations
 
 import json
+import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from django.urls import reverse
 
 from tap_web.page import build_url_id
+
+logger = logging.getLogger(__name__)
+GRAPH_ANCHOR = "#slot-graph"
+"""The entity viewer's neighbourhood-graph slot; the drawer's "Show on graph" link lands on it."""
 
 OVERVIEW_FIELDS = (
     "status",
@@ -81,6 +87,56 @@ class FieldRow:
     label: str
     text: str
     is_block: bool
+    drawer_url: str = ""
+    page_url: str = ""
+
+
+@dataclass
+class SectionRow:
+    """One line of a plugin section: a label, its text, and optionally where it leads."""
+
+    label: str
+    text: str
+    page_url: str = ""
+    drawer_url: str = ""
+
+
+@dataclass
+class DrawerSection:
+    """A plugin-contributed drawer section (req-web-drawer-sections): rendered after Findings, with a tab."""
+
+    key: str
+    title: str
+    rows: list[SectionRow] = field(default_factory=list)
+    empty_text: str = ""
+    note: str = ""
+
+
+SectionBuilder = Callable[[str, str, Any], "DrawerSection | None"]
+_SECTIONS: dict[str, SectionBuilder] = {}
+
+
+def register_drawer_section(key: str, builder: SectionBuilder) -> None:
+    """Add a section to every drawer: ``builder(entity_type, entity_id, obj)`` returns it, or ``None`` to omit it."""
+    _SECTIONS[key] = builder
+
+
+def plugin_sections(entity_type: str, entity_id: str, obj: Any) -> list[DrawerSection]:
+    """The registered sections for one entity, in key order; a failing builder is logged and left out.
+
+    TAP-IMPLEMENTS: req-web-drawer-sections@2c87f27a0e33/e52024dd9153 (derivation) — the one place plugin sections are
+        gathered, so a plugin adds drawer content without tap_web importing the plugin.
+    """
+    out: list[DrawerSection] = []
+    for key in sorted(_SECTIONS):
+        try:
+            section = _SECTIONS[key](entity_type, entity_id, obj)
+        except Exception:  # noqa: BLE001 — one plugin's section never breaks the drawer
+            logger.exception("[d7c1] drawer section %s failed for %s %s", key, entity_type, entity_id)
+            continue
+        if section is not None:
+            out.append(section)
+    return out
 
 
 def base_edge_type(edge_type: str) -> str:
@@ -95,7 +151,7 @@ def edge_label(edge_type: str) -> str:
 def is_finding_edge(edge_type: str, direction: str, neighbour_model: type | None) -> bool:
     """Whether the neighbour across this edge is a finding about the subject.
 
-    TAP-IMPLEMENTS: req-web-drawer-categories@40439273ba3b/cb26b75d1f19 (derivation) — the one rule that
+    TAP-IMPLEMENTS: req-web-drawer-categories@ca2e74c335dd/cb26b75d1f19 (derivation) — the one rule that
         splits Findings from Relationships: a neighbour model declaring DRAWER_ROLE="finding", an
         incoming CONCERNS_RESOURCE* edge, or an outgoing HOLDS_*FINDING edge.
     """
@@ -142,9 +198,9 @@ def context_rows(relationships: list[EdgeGroup]) -> list[FieldRow]:
         n, base = g.neighbours[0], base_edge_type(g.edge_type)
         type_name = n.type_name or n.entity_type
         if base.startswith("CONCERNS_RESOURCE"):
-            rows.insert(0, FieldRow("Resource", f"{n.name} ({type_name})", False))
+            rows.insert(0, FieldRow("Resource", f"{n.name} ({type_name})", False, n.drawer_url, n.page_url))
         elif _PLACE_EDGE.search(base):
-            rows.append(FieldRow(type_name, n.name, False))
+            rows.append(FieldRow(type_name, n.name, False, n.drawer_url, n.page_url))
     return rows
 
 
@@ -207,12 +263,19 @@ def _edge_groups(entity: Any) -> tuple[list[EdgeGroup], list[EdgeGroup]]:
                 models[other.entity_type] = _model_class(other.entity_type)
             bucket = findings if is_finding_edge(edge.edge_type, direction, models[other.entity_type]) else related
             key = (edge.edge_type, direction)
-            group = bucket.setdefault(key, EdgeGroup(label=edge_label(edge.edge_type), direction=direction, edge_type=edge.edge_type))
+            group = bucket.setdefault(
+                key, EdgeGroup(label=edge_label(edge.edge_type), direction=direction, edge_type=edge.edge_type)
+            )
             group.total += 1
             if len(group.neighbours) < RELATIONSHIP_GROUP_LIMIT:
                 drawer_url, page_url = object_urls(other.entity_type, other.name, other.pk)
                 group.neighbours.append(
-                    Neighbour(name=other.name or str(other.pk), entity_type=other.entity_type, drawer_url=drawer_url, page_url=page_url)
+                    Neighbour(
+                        name=other.name or str(other.pk),
+                        entity_type=other.entity_type,
+                        drawer_url=drawer_url,
+                        page_url=page_url,
+                    )
                 )
 
     def ordered(groups: dict[tuple[str, str], EdgeGroup]) -> list[EdgeGroup]:
@@ -224,7 +287,7 @@ def _edge_groups(entity: Any) -> tuple[list[EdgeGroup], list[EdgeGroup]]:
 def build_drawer_context(entity_type: str, entity_id: str) -> dict[str, Any] | None:
     """Everything the drawer fragment renders for one entity, or ``None`` if it does not resolve.
 
-    TAP-IMPLEMENTS: req-web-drawer-fragment@4bc796834185/829f38d64950 (derivation) — the drawer's
+    TAP-IMPLEMENTS: req-web-drawer-fragment@4bc796834185/1c6e5b3d1b8d (derivation) — the drawer's
         one context: identity, the seven categories and the two links, from the entity's fields,
         edges and FLIP map, for any registered type.
     """
@@ -305,7 +368,10 @@ def build_drawer_context(entity_type: str, entity_id: str) -> dict[str, Any] | N
         pass
 
     drawer_url, page_url = object_urls(entity_type, name, entity.pk)
+    sections = plugin_sections(entity_type, str(entity.pk), obj)
     return {
+        "drawer_sections": sections,
+        "drawer_graph_url": page_url + GRAPH_ANCHOR,
         "drawer_name": name,
         "drawer_entity_id": str(entity.pk),
         "drawer_entity_type": entity_type,

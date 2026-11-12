@@ -8,6 +8,7 @@
         </div>
     </div>
     <div class="tap-drawer-actions">
+        <a class="tap-drawer-graph" href="{{ drawer_graph_url }}">Show on graph</a>
         <a class="tap-drawer-open" href="{{ drawer_page_url }}">Open full page</a>
         <button type="button" class="tap-drawer-close" data-tap-drawer-close aria-label="Close details">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
@@ -18,6 +19,7 @@
 <nav class="tap-drawer-tabs" aria-label="Sections">
     <a href="#tap-dr-overview">Overview</a>
     <a href="#tap-dr-findings">Findings <span class="tap-drawer-count">{{ drawer_findings_total }}</span></a>
+    {% for section in drawer_sections %}<a href="#tap-dr-x-{{ section.key }}">{{ section.title }} <span class="tap-drawer-count">{{ section.rows|length }}</span></a>{% endfor %}
     <a href="#tap-dr-relationships">Relationships <span class="tap-drawer-count">{{ drawer_relationships_total }}</span></a>
     <a href="#tap-dr-configuration">Configuration</a>
     <a href="#tap-dr-tags">Tags <span class="tap-drawer-count">{{ drawer_tags|length }}</span></a>
@@ -31,7 +33,7 @@
         <dl class="tap-drawer-dl">
             <dt>Type</dt><dd>{{ drawer_type_name }}</dd>
             <dt>Entity id</dt><dd class="tap-drawer-mono">{{ drawer_entity_id }}</dd>
-            {% for row in drawer_overview %}<dt>{{ row.label }}</dt><dd>{{ row.text }}</dd>{% endfor %}
+            {% for row in drawer_overview %}<dt>{{ row.label }}</dt><dd>{% if row.page_url %}<a href="{{ row.page_url }}" data-tap-drawer="{{ row.drawer_url }}">{{ row.text }}</a>{% else %}{{ row.text }}{% endif %}</dd>{% endfor %}
             {% if drawer_declared_in %}<dt>Declared in</dt><dd class="tap-drawer-mono">{{ drawer_declared_in }}</dd>{% endif %}
         </dl>
     </section>
@@ -44,6 +46,23 @@
             <p class="tap-drawer-empty">No findings point at this {{ drawer_type_name }}. Looked for incoming “concerns resource” edges and finding holders.</p>
         {% endfor %}
     </section>
+
+    {% for section in drawer_sections %}
+    <section class="tap-drawer-section" id="tap-dr-x-{{ section.key }}" data-tap-drawer-extra="{{ section.key }}" aria-labelledby="tap-dr-x-{{ section.key }}-h">
+        <h3 id="tap-dr-x-{{ section.key }}-h">{{ section.title }} <span class="tap-drawer-count">{{ section.rows|length }}</span></h3>
+        {% if section.rows %}
+            <dl class="tap-drawer-dl">
+                {% for row in section.rows %}
+                    <dt>{{ row.label }}</dt>
+                    <dd>{% if row.page_url %}<a href="{{ row.page_url }}"{% if row.drawer_url %} data-tap-drawer="{{ row.drawer_url }}"{% endif %}>{{ row.text }}</a>{% else %}{{ row.text }}{% endif %}</dd>
+                {% endfor %}
+            </dl>
+        {% else %}
+            <p class="tap-drawer-empty">{{ section.empty_text|default:"Nothing to show for this resource." }}</p>
+        {% endif %}
+        {% if section.note %}<p class="tap-drawer-more">{{ section.note }}</p>{% endif %}
+    </section>
+    {% endfor %}
 
     <section class="tap-drawer-section" id="tap-dr-relationships" data-tap-drawer-category="relationships" aria-labelledby="tap-dr-relationships-h">
         <h3 id="tap-dr-relationships-h">Relationships <span class="tap-drawer-count">{{ drawer_relationships_total }}</span></h3>

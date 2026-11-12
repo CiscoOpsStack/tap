@@ -133,7 +133,9 @@ def _row_entity_id(row: Mapping[str, Any], id_field: str) -> str:
     return ""
 
 
-def apply_scope(rows: list[dict[str, Any]], scope: Scope | None, id_field: str = "") -> tuple[list[dict[str, Any]], int]:
+def apply_scope(
+    rows: list[dict[str, Any]], scope: Scope | None, id_field: str = ""
+) -> tuple[list[dict[str, Any]], int]:
     """Narrow ``rows`` to the scope; return the kept rows and how many were left out.
 
     TAP-IMPLEMENTS: req-web-nav-scope-lens@9ae1bb8256e2/ffe32c4909d3 (enforcement) — a row is left out only when its entity
@@ -165,7 +167,7 @@ def _dimensions(ids: Iterable[str]) -> dict[str, dict[str, Any]]:
     for raw in ids:
         try:
             valid.append(uuid.UUID(raw))
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             continue
     if not valid:
         return {}

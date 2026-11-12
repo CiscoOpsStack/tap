@@ -641,7 +641,8 @@ class TablePanelType:
         from tap_web.scope import apply_scope, read_scope
 
         scope = read_scope(getattr(request, "session", None))
-        drawer_cfg = config.get("drawer") if isinstance(config.get("drawer"), dict) else {}
+        raw_drawer = config.get("drawer")
+        drawer_cfg = raw_drawer if isinstance(raw_drawer, dict) else {}
         scope_id_field = str(drawer_cfg.get("id_field") or "")
         scope_hidden = 0
 
