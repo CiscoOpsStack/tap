@@ -11,11 +11,13 @@ from __future__ import annotations
 from tap_auth.providers.base import Provider
 from tap_auth.providers.github_oauth import GitHubOAuthProvider
 from tap_auth.providers.google_oidc import GoogleOidcProvider
+from tap_auth.providers.okta_oidc import OktaOidcProvider
 
 # The set of supported provider types. New types register here.
 _PROVIDERS: dict[str, Provider] = {
     GoogleOidcProvider.type: GoogleOidcProvider(),
     GitHubOAuthProvider.type: GitHubOAuthProvider(),
+    OktaOidcProvider.type: OktaOidcProvider(),
 }
 
 

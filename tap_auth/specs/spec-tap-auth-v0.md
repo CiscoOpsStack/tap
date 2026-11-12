@@ -75,6 +75,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-boot | [Boot Profile Integration](#boot-profile-integration) | Implemented | Auth config is a boot-profile section with tap_auth-owned schema fragment; last-admin invariant + deploy gate |
 | req-tap-auth-providers | [Provider Framework](#provider-framework) | Implemented | Provider-specific validation/self-tests/settings builders; `auth_selftest` command |
 | req-tap-auth-google-oidc | [Google OIDC Provider](#google-oidc-provider) | Implemented | First provider type; allowed domains (hd); verified email; allowed_emails; discovery live check |
+| req-tap-auth-okta-oidc | [Okta OIDC Provider](#okta-oidc-provider) | Implemented | Okta through the openid_connect engine; domain from the verified email (no hd); optional allowed_emails and Okta group pin from the signed ID token; PKCE; discovery issuer must match |
 | req-tap-auth-github-device-flow | [GitHub Device Flow](#github-device-flow) | Proposed | Secretless sign-in for a deployment whose hostname is generated per instance: no callback, no wildcard, no client_secret — a public client_id only. Token acquisition only; identity and policy stay on the existing github_oauth chokepoint |
 | req-tap-auth-github-oauth | [GitHub OAuth Provider](#github-oauth-provider) | Implemented | Second provider type; plain OAuth 2.0 (GitHub is not an OIDC IdP for user login); identity AND policy keyed on the numeric user id; allowed_user_ids/owner_only policy; live credential-adjudication self-test |
 | req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
@@ -744,6 +745,36 @@ Status: `Implemented`
 | req-tap-auth-google-oidc-8 | Returned hd Only | Implemented | Domain enforcement uses the returned `hd` claim, never the request-side hint; email-domain fallback is opt-in per provider and off by default for customer providers. | |
 | req-tap-auth-google-oidc-9 | Runtime Unreachable Graceful | Implemented | A transient provider-reachability failure (`requests.RequestException`) during the OAuth login/callback flow renders a retryable 503 page instead of an uncaught 500; scoped to `/auth/` so non-auth `requests` failures stay real 500s. The runtime complement to the boot-time discovery self-test (-4). | |
 | req-tap-auth-google-oidc-fips-algorithm | FIPS Algorithm Clash Graceful | Implemented | Under `TAP_FIPS=1`, an IdP signing its `id_token` with a non-approved algorithm (JWS `ES256K`, or RSA < 2048 bits) fails inside allauth's `jwtkit.fetch_key → algorithm.from_jwk()` with `cryptography.InternalError` / `ValueError` — neither a `PyJWTError` nor an allauth error type, so it escapes both allauth's handler and the `-9` `RequestException` rescue into an uncaught 500 with no hint FIPS is the cause. `CallerContextMiddleware.process_exception` recognizes the signatures via `tap.crypto_errors.explain_crypto_error` (Django-free, in `tap/` per no-`tap_*`-interdeps) and renders a branded **502** (the IdP returned something this FIPS-mode instance cannot process — not transient, so no `Retry-After`), scoped to `/auth/`. Built in the change that flipped `TAP_FIPS=1` (req-cicd-base-image-lifecycle-6). Design + exact signatures: `docs/misc/doc-fips-assessment-record.md` §5.3. | |
+
+---
+
+### Okta OIDC Provider
+----
+RID: `req-tap-auth-okta-oidc`  
+
+Status: `Implemented`
+
+`okta_oidc` lets a deployment whose workforce identity lives in Okta sign in without SAML. It rides the same allauth `openid_connect` engine as `google_oidc`, so it adds no dependency and inherits the runtime-unreachable and FIPS-algorithm handling at the `/auth/` edge.
+
+#### Implementation
+
+- `issuer` is required and must be https. It is the Okta org server (`https://<org>.okta.com`) or a custom authorization server (`.../oauth2/<id>`). A host outside the Okta domains is a warning, not a failure, because Okta supports custom domains.
+- Okta returns no hosted-domain claim, so `allowed_domains` is matched against the domain of the IdP-asserted verified email (`email` with `email_verified=true`). The match is exact: `sub.example.com` is not `example.com`.
+- `allowed_emails` narrows within the domains, as for `google_oidc`.
+- `allowed_groups` optionally requires membership in at least one named Okta group. The groups are read from the `groups` claim of the signed ID token, so a provider with a group pin sets `fetch_userinfo` off. Userinfo would only carry groups with a `groups` scope, and allauth's scope setting is engine-wide, so requesting it would break every other `openid_connect` provider. The Okta app must emit the claim (Sign On tab, groups claim filter). A missing or non-list claim denies.
+- Every app entry enables PKCE.
+- The live self-test fetches the issuer's discovery document and fails when its `issuer` differs from the configured one.
+- Group membership is an admission filter, not a role source. Roles still come from `initial_grants` and later grants.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-okta-oidc-1 | Concrete Provider | Implemented | `okta_oidc` is a registered provider type and a boot-schema enum value, with its own field set; Google and GitHub fields are refused for it, and its fields are refused for them. | `tap_auth/tests/test_okta_oidc.py` |
+| req-tap-auth-okta-oidc-2 | Verified-Email Domain | Implemented | Login requires a verified email whose exact domain is in `allowed_domains`; there is no any-account login. | |
+| req-tap-auth-okta-oidc-3 | Group Pin | Implemented | With `allowed_groups`, login requires one of the groups in the signed ID token's `groups` claim; a missing claim denies. | |
+| req-tap-auth-okta-oidc-4 | Issuer Check | Implemented | The live self-test fails on an unreachable issuer, missing discovery keys, or an issuer mismatch. | |
+| req-tap-auth-okta-oidc-5 | PKCE | Implemented | Every Okta app entry enables PKCE. | |
 
 ---
 
