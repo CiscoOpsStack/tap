@@ -178,8 +178,8 @@ questions the room is asked most, and `group_by.choices` for the axes they fix b
 
 ## Step 5: Connect the page to its neighbours (cross-page navigation)
 
-A page is one stop on an investigation, not a destination. Security tools that read well (the public Wiz
-material is the reference here; see [`references/investigation-patterns.md`](references/investigation-patterns.md))
+A page is one stop on an investigation, not a destination. Security tools that read well (see
+[`references/investigation-patterns.md`](references/investigation-patterns.md))
 share one shape: an **overview** that says where to look, a **board** that says what to act on, a **profile**
 that shows one object with everything that touches it, and the **raw card** for "says who?". Each level carries
 just enough to decide whether to go one deeper. Design the page's place in that chain before its contents:

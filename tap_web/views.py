@@ -987,7 +987,7 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
 def entity_search_view(request: HttpRequest) -> JsonResponse:
     """Domain entities matching ``?q=`` for the command palette (req-web-nav-command-palette-3).
 
-    TAP-IMPLEMENTS: req-web-nav-command-palette@pending (surface) — /__entity-search.json, the palette's
+    TAP-IMPLEMENTS: req-web-nav-command-palette@feedec1b917b/b5853066596e (surface) — /__entity-search.json, the palette's
         entity index: name, natural key or entity id, behind grid.read like every graph read.
     """
     from tap_web.entity_search import DEFAULT_LIMIT, search_entities
@@ -1020,7 +1020,7 @@ def entity_search_view(request: HttpRequest) -> JsonResponse:
 def scope_view(request: HttpRequest) -> HttpResponse:
     """Read or set the reader's scope lens (req-web-nav-scope-lens).
 
-    TAP-IMPLEMENTS: req-web-nav-scope-lens@pending (surface) — GET /__scope.json returns the active scope and
+    TAP-IMPLEMENTS: req-web-nav-scope-lens@9ae1bb8256e2/d91b82a8ba76 (surface) — GET /__scope.json returns the active scope and
         the offered options; POST sets one offered ``key``/``value`` or clears it (``clear=1``). The scope is
         session state; nothing is written to the grid.
 
@@ -1039,16 +1039,180 @@ def scope_view(request: HttpRequest) -> HttpResponse:
             write_scope(request.session, scope)
         if "application/json" not in request.headers.get("Accept", ""):
             target = request.POST.get("next") or "/"
-            if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            if not url_has_allowed_host_and_scheme(
+                target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
                 target = "/"
             return redirect(target)
     active = read_scope(request.session)
     return JsonResponse(
         {
             "version": "0",
-            "active": {"key": active.key, "value": active.value, "label": active.label, "text": active.text} if active else None,
-            "options": [
-                {"key": o.key, "value": o.value, "label": o.label, "count": o.count} for o in scope_options()
-            ],
+            "active": (
+                {"key": active.key, "value": active.value, "label": active.label, "text": active.text}
+                if active
+                else None
+            ),
+            "options": [{"key": o.key, "value": o.value, "label": o.label, "count": o.count} for o in scope_options()],
         }
     )
+
+
+def _query_type_choices() -> list[dict[str, Any]]:
+    """Domain types that hold at least one entity, most populated first, for the builder's "Find" list."""
+    from django.db.models import Count
+
+    from tap_grid.models import Entity
+    from tap_web.drawer import _type_names
+    from tap_web.entity_search import domain_types
+
+    types = domain_types()
+    counts = dict(
+        Entity.objects.filter(entity_type__in=types, deleted_at__isnull=True)
+        .values("entity_type")
+        .annotate(n=Count("pk"))
+        .values_list("entity_type", "n")
+    )
+    names = _type_names(set(counts))
+    rows = [{"slug": t, "name": names.get(t, t), "count": n} for t, n in counts.items() if n]
+    return sorted(rows, key=lambda r: r["name"].lower())
+
+
+def _query_from_request(request: HttpRequest) -> tuple[Any, str]:
+    """The builder query in the URL, with an added hop or condition folded in; (spec, error)."""
+    from tap_web.query_builder import QueryError, QuerySpec, parse
+
+    params = request.GET.copy()
+    params.setlist("h", [h for h in params.getlist("h") if h])
+    params.setlist("c", [c for c in params.getlist("c") if c])
+    if params.get("cv") and params.get("co"):
+        params.appendlist("c", f"{params['cv']}:{params['co']}:{params.get('cval', '')}")
+    try:
+        return parse(params), ""
+    except QueryError as exc:
+        return QuerySpec(), str(exc)
+
+
+@require_GET
+def query_builder_view(request: HttpRequest) -> HttpResponse:
+    """The visual query builder page (req-web-query-builder): find a type, follow edges, add conditions, run.
+
+    TAP-IMPLEMENTS: req-web-query-builder@9d5123c46bcd/b5aab19e30fa (surface) — /__query/, read-only: the query runs through
+        execute_search behind grid.read and the page never writes; saving is a GRIFT download.
+    """
+    from tap_web import query_builder as qb
+    from tap_web.drawer import _type_names, object_urls
+    from tap_web.panels.viewer_panel import humanize
+
+    _authorize_grid_read("query_builder_view")
+    spec, error = _query_from_request(request)
+    canonical = spec.query_string() if spec.start_type else ""
+    if not error and (request.GET.get("cv") or "" in request.GET.getlist("h")):
+        return redirect(f"{request.path}?{canonical}" if canonical else request.path)
+
+    var_types = spec.var_types() if spec.start_type else {}
+    names = _type_names(set(var_types.values()))
+    hops = []
+    for i, hop in enumerate(spec.hops):
+        kept = qb.QuerySpec(spec.start_type, spec.hops[:i], [c for c in spec.conditions if c.var in qb.VARS[: i + 1]])
+        hops.append(
+            {
+                "var": qb.VARS[i + 1],
+                "type_name": names.get(hop.target_type, hop.target_type),
+                "label": next(
+                    (
+                        o.label
+                        for o in qb.edge_options(var_types[qb.VARS[i]])
+                        if o.value == f"{hop.edge_type}:{hop.direction}:{hop.target_type}"
+                    ),
+                    hop.edge_type,
+                ),
+                "remove": kept.query_string(),
+            }
+        )
+    conditions = []
+    for i, c in enumerate(spec.conditions):
+        rest = qb.QuerySpec(spec.start_type, spec.hops, [x for j, x in enumerate(spec.conditions) if j != i])
+        conditions.append(
+            {
+                "text": f"{names.get(var_types[c.var], var_types[c.var])} {humanize(c.field)} {qb.OPERATOR_LABELS[c.op]} {c.value}".strip(),
+                "remove": rest.query_string(),
+            }
+        )
+    last_type = var_types[qb.VARS[len(spec.hops)]] if spec.start_type else ""
+    hop_options = qb.edge_options(last_type) if spec.start_type and len(spec.hops) < qb.MAX_HOPS else []
+    field_groups = (
+        [
+            {"var": v, "type_name": names.get(t, t), "fields": [(f, humanize(f)) for f in qb.model_fields(t)]}
+            for v, t in var_types.items()
+        ]
+        if len(spec.conditions) < qb.MAX_CONDITIONS
+        else []
+    )
+
+    result: dict[str, Any] = qb.run(spec) if spec.start_type and not error else {"rows": [], "lines": [], "error": ""}
+    columns = [{"key": "name", "title": names.get(spec.start_type, "Result"), "type": spec.start_type, "id": "id"}]
+    columns += [
+        {"key": f"{h['var']}_name", "title": h["type_name"], "type": var_types[h["var"]], "id": f"{h['var']}_id"}
+        for h in hops
+    ]
+    columns += [
+        {
+            "key": f"{c.var}_{c.field}",
+            "title": f"{names.get(var_types[c.var], '')} {humanize(c.field)}",
+            "type": "",
+            "id": "",
+        }
+        for c in sorted(
+            {(c.var, c.field): c for c in spec.conditions if c.field not in qb.BUILTIN_FIELDS}.values(),
+            key=lambda c: (c.var, c.field),
+        )
+    ]
+    rows = []
+    for r in result["rows"]:
+        cells = []
+        for col in columns:
+            value = r.get(col["key"])
+            cell = {"text": "" if value is None else str(value), "page_url": "", "drawer_url": ""}
+            if col["type"] and r.get(col["id"]):
+                cell["drawer_url"], cell["page_url"] = object_urls(
+                    col["type"], cell["text"] or str(r[col["id"]]), r[col["id"]]
+                )
+            cells.append(cell)
+        rows.append(cells)
+
+    context = {
+        "page_title": "Query builder",
+        "spec": spec,
+        "canonical": canonical,
+        "error": error or result["error"],
+        "types": _query_type_choices(),
+        "start_name": names.get(spec.start_type, ""),
+        "hops": hops,
+        "hop_options": hop_options,
+        "conditions": conditions,
+        "field_groups": field_groups,
+        "operators": list(qb.OPERATOR_LABELS.items()),
+        "columns": columns,
+        "rows": rows,
+        "row_limit": qb.RESULT_LIMIT,
+        "gryphon": "\n".join(result["lines"]),
+        "hidden_hops": [f"{h.edge_type}:{h.direction}:{h.target_type}" for h in spec.hops],
+        "hidden_conditions": [f"{c.var}.{c.field}:{c.op}:{c.value}" for c in spec.conditions],
+    }
+    return render(request, "tap_web/query_builder.html", context)
+
+
+@require_GET
+def query_export_view(request: HttpRequest) -> HttpResponse:
+    """The builder query as a GRIFT file holding one saved Gryphon search (req-web-query-builder-4)."""
+    from tap_web import query_builder as qb
+
+    _authorize_grid_read("query_export_view")
+    spec, error = _query_from_request(request)
+    if error or not spec.start_type:
+        return HttpResponse(error or "Pick a type first.", status=400, content_type="text/plain; charset=utf-8")
+    name = (request.GET.get("name") or "").strip()[:120] or "Saved query"
+    response = HttpResponse(qb.dumps(qb.export_grift(spec, name)), content_type="application/json")
+    response["Content-Disposition"] = f'attachment; filename="{qb.export_filename(name)}"'
+    return response
