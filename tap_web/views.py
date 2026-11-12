@@ -981,3 +981,74 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
         },
         json_dumps_params={"indent": 2},
     )
+
+
+@require_GET
+def entity_search_view(request: HttpRequest) -> JsonResponse:
+    """Domain entities matching ``?q=`` for the command palette (req-web-nav-command-palette-3).
+
+    TAP-IMPLEMENTS: req-web-nav-command-palette@pending (surface) — /__entity-search.json, the palette's
+        entity index: name, natural key or entity id, behind grid.read like every graph read.
+    """
+    from tap_web.entity_search import DEFAULT_LIMIT, search_entities
+
+    _authorize_grid_read("entity_search_view")
+    try:
+        limit = int(request.GET.get("limit", DEFAULT_LIMIT))
+    except ValueError:
+        limit = DEFAULT_LIMIT
+    hits = search_entities(request.GET.get("q", ""), limit=limit)
+    return JsonResponse(
+        {
+            "version": "0",
+            "entities": [
+                {
+                    "entity_id": h.entity_id,
+                    "entity_type": h.entity_type,
+                    "type_name": h.type_name,
+                    "name": h.name,
+                    "drawer_url": h.drawer_url,
+                    "page_url": h.page_url,
+                }
+                for h in hits
+            ],
+        }
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def scope_view(request: HttpRequest) -> HttpResponse:
+    """Read or set the reader's scope lens (req-web-nav-scope-lens).
+
+    TAP-IMPLEMENTS: req-web-nav-scope-lens@pending (surface) — GET /__scope.json returns the active scope and
+        the offered options; POST sets one offered ``key``/``value`` or clears it (``clear=1``). The scope is
+        session state; nothing is written to the grid.
+
+    A POST from a form (no ``Accept: application/json``) redirects back to a same-origin ``next`` URL.
+    """
+    from tap_web.scope import read_scope, resolve_option, scope_options, write_scope
+
+    _authorize_grid_read("scope_view")
+    if request.method == "POST":
+        if request.POST.get("clear"):
+            write_scope(request.session, None)
+        else:
+            scope = resolve_option(request.POST.get("key", ""), request.POST.get("value", ""))
+            if scope is None:
+                return JsonResponse({"error": "That scope is not one of the offered options."}, status=400)
+            write_scope(request.session, scope)
+        if "application/json" not in request.headers.get("Accept", ""):
+            target = request.POST.get("next") or "/"
+            if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                target = "/"
+            return redirect(target)
+    active = read_scope(request.session)
+    return JsonResponse(
+        {
+            "version": "0",
+            "active": {"key": active.key, "value": active.value, "label": active.label, "text": active.text} if active else None,
+            "options": [
+                {"key": o.key, "value": o.value, "label": o.label, "count": o.count} for o in scope_options()
+            ],
+        }
+    )
