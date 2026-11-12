@@ -64,4 +64,3 @@ urlpatterns = [
     ),
     path("<path:page_slug>", views.page_view, name="page"),
 ]
-

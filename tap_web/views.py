@@ -987,8 +987,8 @@ def nav_index_view(request: HttpRequest) -> JsonResponse:
 def entity_search_view(request: HttpRequest) -> JsonResponse:
     """Domain entities matching ``?q=`` for the command palette (req-web-nav-command-palette-3).
 
-    TAP-IMPLEMENTS: req-web-nav-command-palette@feedec1b917b/b5853066596e (surface) — /__entity-search.json, the palette's
-        entity index: name, natural key or entity id, behind grid.read like every graph read.
+    TAP-IMPLEMENTS: req-web-nav-command-palette@4a1e9f31303e/b5853066596e (surface) — /__entity-search.json, the palette's
+        entity index: name or entity id, behind grid.read like every graph read.
     """
     from tap_web.entity_search import DEFAULT_LIMIT, search_entities
 

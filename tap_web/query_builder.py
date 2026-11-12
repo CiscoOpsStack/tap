@@ -102,7 +102,7 @@ def model_fields(entity_type: str) -> list[str]:
     except KeyError:
         return []
     out = list(BUILTIN_FIELDS)
-    for f in cls._meta.get_fields():
+    for f in cls._meta.get_fields():  # type: ignore[attr-defined]
         if f.is_relation or f.name in ("id", "entity", "entity_id", "batch_id", "flip_map", "name"):
             continue
         if _FIELD.match(f.name):

@@ -522,7 +522,7 @@ class TestTablePanelViewContext:
         _link_search(panel, search)
         envelope = {"nodes": [{"entity_id": "in"}, {"entity_id": "out"}], "edges": [], "info": {}, "warnings": {}}
         request = RequestFactory().get(_panel_url(panel))
-        request.session = {}
+        setattr(request, "session", {})  # noqa: B010 - a plain dict stands in for the session
         write_scope(request.session, Scope("aws_account", "111", "stage"))
         dims = {"in": {"aws_account": "111"}, "out": {"aws_account": "222"}}
         with (
