@@ -316,7 +316,8 @@ allow_subclassing_any = true
 # <name>/tap_plugin/` is the in-tree validate_plugin fixture plugin — same story: it is
 # installed under its `tap_plugin.<slug>` identity, so exclude the source walk to avoid
 # the "found twice under different module names" double-walk.
-exclude = '(^|/)(plugins/[^/]+/tap_plugin/|_dev-plugins/|tap_plugins/tests/fixtures/[^/]+/tap_plugin/)'
+# `logs/` and `exhibitions/` are gitignored local scratch, never shipped source.
+exclude = '(^|/)(plugins/[^/]+/tap_plugin/|_dev-plugins/|tap_plugins/tests/fixtures/[^/]+/tap_plugin/|logs/|exhibitions/)'
 
 [[tool.mypy.overrides]]
 module = ["*.tests.*", "conftest"]

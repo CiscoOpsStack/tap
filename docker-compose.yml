@@ -248,6 +248,15 @@ services:
       # populated by the repo or by tests. Loader no-ops cleanly when the
       # directory is empty or missing. See tap_cares/specs/spec-tap-cares-secrets.md.
       - ./tap_secrets:/run/tap-secrets:ro
+      # Local checkouts the git_sync scan reads. Defaults are inside this repo, so a
+      # session without the variables still starts. Override them in .env.local.
+      - ${GIT_SYNC_HOST_REPO:-./_dev-plugins/git_sync/tag_profiles}:/git-sync/repo:ro
+      - ${GIT_SYNC_AGENT_HOST:-./_dev-plugins/git_sync/tap_plugin/git_sync/fixtures}:/git-sync/agent:ro
+      # The assistant's AWS profile: the host's AWS config file and SSO token cache, read-only.
+      # The credentials file is never mounted. Defaults are an empty config and cache, so a
+      # session without the variables starts and the assistant says Bedrock is not configured.
+      - ${TAP_ASSISTANT_AWS_CONFIG:-./_dev-plugins/assistant/aws/config}:/home/nonroot/.aws/config:ro
+      - ${TAP_ASSISTANT_AWS_SSO_CACHE:-./_dev-plugins/assistant/aws/sso}:/home/nonroot/.aws/sso:ro
       # tailwindcss binary cache — populated by docker/install-tailwindcss.sh
       # on first invocation of the /tailwind-rebuild skill, reused thereafter.
       # Named volume rather than bind mount so the binary lives in Docker's
@@ -456,6 +465,27 @@ services:
       TAP_PASSKEY_RP_ID: "${TAP_PASSKEY_RP_ID:-localhost}"
       TAP_PASSKEY_ORIGIN: "${TAP_PASSKEY_ORIGIN:-http://localhost:${WEB_PORT:-8000}}"
 
+      # The OPA policy sidecar (the `opa` service below), for plugins that evaluate Rego. EMPTY
+      # by default: the sidecar only runs under the `policy` compose profile, and a plugin that
+      # needs it reports "not set" rather than guessing a host. Set it together with the
+      # profile in .env.local: COMPOSE_PROFILES=policy and TAP_OPA_URL=http://opa:8181.
+      TAP_OPA_URL: "${TAP_OPA_URL:-}"
+      GIT_SYNC_REPO: /git-sync/repo
+      GIT_SYNC_AGENT_MODULE: /git-sync/agent
+      # The assistant's model. bedrock talks to GovCloud; openai talks to any OpenAI-compatible
+      # server, including a local Ollama at http://host.docker.internal:11434/v1. The API key
+      # is optional and is read from the environment only; an empty value sends no key.
+      TAP_ASSISTANT_PROVIDER: "${TAP_ASSISTANT_PROVIDER:-bedrock}"
+      TAP_ASSISTANT_MODEL_ID: "${TAP_ASSISTANT_MODEL_ID:-}"
+      TAP_ASSISTANT_BASE_URL: "${TAP_ASSISTANT_BASE_URL:-}"
+      TAP_ASSISTANT_API_KEY: "${TAP_ASSISTANT_API_KEY:-}"
+      TAP_ASSISTANT_AWS_PROFILE: "${TAP_ASSISTANT_AWS_PROFILE:-}"
+      TAP_ASSISTANT_REGION: "${TAP_ASSISTANT_REGION:-us-gov-west-1}"
+
+    # Lets the assistant reach a model server on the host (Ollama on :11434) as host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     # Wait for the database to be healthy before starting Django
     # Prevents errors from Django trying to connect before PostgreSQL is ready
     depends_on:
@@ -483,6 +513,29 @@ services:
     # Restart the container if it crashes
     # Useful during development when code errors might crash the server
     restart: unless-stopped
+
+  # ============================================================================
+  # OPA policy sidecar (opt-in: compose profile `policy`)
+  # ============================================================================
+  opa:
+    # Pinned by tag AND digest: the tag says which release, the digest makes a re-tagged image
+    # fail to pull instead of silently running something else. `-static` is the build with no
+    # libc dependency. Bump both together.
+    image: openpolicyagent/opa:1.10.1-static@sha256:e1f196b5316301785d5251543c9d0f3f6c83ce6ac23263b494730427fa80e248
+
+    # Opt-in. A stack that sets nothing never starts it; COMPOSE_PROFILES=policy in .env.local
+    # does, and TAP_OPA_URL (on `web`, above) tells plugins where it is.
+    profiles: ["policy"]
+
+    # A server with no policies of its own: a plugin loads its Rego through the REST API before
+    # it evaluates, so the policy text lives in the plugin's repository and nowhere here.
+    # Telemetry is off so the sidecar makes no outbound calls.
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "--log-level=error", "--disable-telemetry"]
+
+    # NO `ports:` on purpose. Authentication is off, so the API is reachable only from the compose
+    # network (`web`), never from the host or beyond it. Publishing the port would let anything on
+    # the host replace the policies TAP evaluates.
+    restart: on-failure
 
 # ============================================================================
 # Named Volumes

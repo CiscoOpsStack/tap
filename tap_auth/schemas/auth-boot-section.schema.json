@@ -26,9 +26,9 @@
             "pattern": "^[a-z][a-z0-9-]*$"
           },
           "type": {
-            "description": "Provider type. 'google_oidc' (Google Workspace, OIDC) or 'github_oauth' (GitHub, plain OAuth 2.0 — GitHub publishes no OpenID discovery document for user login). Unknown types fail boot immediately (req-tap-auth-providers). Each type reads a DIFFERENT set of the config fields below; the allOf branches at the end of this section enforce that, so a field belonging to the other type is rejected rather than accepted and ignored.",
+            "description": "Provider type. 'google_oidc' (Google Workspace, OIDC), 'okta_oidc' (Okta, OIDC; domain from the verified email, optional group pin) or 'github_oauth' (GitHub, plain OAuth 2.0 — GitHub publishes no OpenID discovery document for user login). Unknown types fail boot immediately (req-tap-auth-providers). Each type reads a DIFFERENT set of the config fields below; the allOf branches at the end of this section enforce that, so a field belonging to the other type is rejected rather than accepted and ignored.",
             "type": "string",
-            "enum": ["google_oidc", "github_oauth"]
+            "enum": ["google_oidc", "okta_oidc", "github_oauth"]
           },
           "display_name": {
             "description": "Human-facing provider name on the login page (distinct from id).",
@@ -54,12 +54,12 @@
             "type": "boolean"
           },
           "allowed_domains": {
-            "description": "google_oidc: Workspace domains permitted to log in, enforced via the returned hd claim (req-tap-auth-google-oidc). Required and non-empty — there is no 'any Google account' login.",
+            "description": "google_oidc: Workspace domains permitted to log in, enforced via the returned hd claim (req-tap-auth-google-oidc). okta_oidc: domains of the verified email (req-tap-auth-okta-oidc). Required and non-empty for both — there is no 'any account' login.",
             "type": "array",
             "items": {"type": "string", "minLength": 1}
           },
           "allowed_emails": {
-            "description": "google_oidc: optional allowlist of individual verified emails within allowed_domains (e.g. pin an example.com provider to a single operator). Absent/empty ⇒ domain-only.",
+            "description": "google_oidc and okta_oidc: optional allowlist of individual verified emails within allowed_domains (e.g. pin an example.com provider to a single operator). Absent/empty ⇒ domain-only.",
             "type": "array",
             "items": {"type": "string", "format": "email"}
           },
@@ -71,6 +71,16 @@
             "description": "google_oidc: OIDC issuer base URL. Defaults to Google (https://accounts.google.com). NOT available for github_oauth — allauth's GitHub adapter reads its GITHUB_URL at class-definition time, so a GitHub Enterprise Server base URL is process-global and cannot be expressed per provider entry.",
             "type": "string",
             "format": "uri"
+          },
+          "issuer": {
+            "description": "okta_oidc: the Okta authorization server URL, e.g. https://example.okta.com or https://example.okta.com/oauth2/default. Required; https only.",
+            "type": "string",
+            "format": "uri"
+          },
+          "allowed_groups": {
+            "description": "okta_oidc: optional Okta group names; login requires membership in at least one, read from the groups claim of the signed ID token (the Okta app must emit it). Narrows within allowed_domains and allowed_emails.",
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
           },
           "allowed_user_ids": {
             "description": "github_oauth: GitHub NUMERIC user ids permitted to log in. The rename-proof form and the one to prefer when the account is known: a user id is immutable and never reissued, so an allowlist written this way cannot be defeated by a handle change.",
@@ -100,7 +110,25 @@
               "properties": {
                 "allowed_domains": {"minItems": 1},
                 "allowed_user_ids": false,
-                "owner_only": false
+                "owner_only": false,
+                "issuer": false,
+                "allowed_groups": false
+              }
+            }
+          },
+          {
+            "description": "okta_oidc reads the issuer, the verified-email domain policy and the optional group pin. Google's hd fallback and server_url, and the GitHub allowlist fields, are refused.",
+            "if": {"properties": {"type": {"const": "okta_oidc"}}, "required": ["type"]},
+            "then": {
+              "required": ["issuer", "allowed_domains"],
+              "properties": {
+                "allowed_domains": {"minItems": 1},
+                "email_domain_fallback": false,
+                "server_url": false,
+                "allowed_user_ids": false,
+                "owner_only": false,
+                "device_flow": false,
+                "client_id": false
               }
             }
           },
@@ -116,7 +144,9 @@
                 "allowed_domains": false,
                 "allowed_emails": false,
                 "email_domain_fallback": false,
-                "server_url": false
+                "server_url": false,
+                "issuer": false,
+                "allowed_groups": false
               }
             }
           }

@@ -14,7 +14,13 @@
     <link rel="stylesheet" href="{% static 'tap_web/css/panels.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/palette.css' %}">
     <link rel="stylesheet" href="{% static 'tap_web/css/breadcrumb.css' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/sidebar.css' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/drawer.css' %}">
+    {# Blocking, like theme-init: sets the sidebar's collapsed state on the root element before first paint. #}
+    <script src="{% static 'tap_web/js/sidebar-init.js' %}"></script>
     <script src="{% static 'tap_web/js/lib/htmx.min.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/sidebar.js' %}" defer></script>
+    <script src="{% static 'tap_web/js/drawer.js' %}" defer></script>
     <script src="{% static 'tap_web/js/localtime.js' %}" defer></script>
     <script src="{% static 'tap_web/js/palette.js' %}" defer></script>
     <script src="{% static 'tap_web/js/breadcrumb.js' %}" defer></script>
@@ -78,7 +84,7 @@
                     <button type="button"
                             data-tap-palette-affordance
                             class="tap-palette-affordance"
-                            title="Search pages (⌘K)"
+                            title="Search pages and resources (⌘K)"
                             aria-label="Open command palette">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <circle cx="11" cy="11" r="7"/>
@@ -143,15 +149,45 @@
     {# normal stacked pages use natural document flow so the body grows with content and #}
     {# the window scrolls — which keeps the sticky header pinned for the full page height #}
     {# (a flex-1/min-h-0 main would shrink to one viewport and detach the sticky nav).    #}
-    <main class="flex flex-col{% if full_bleed or fill_viewport %} flex-1 min-h-0{% endif %}">
+    {# Structural sidebar (req-web-nav-sidebar) beside the content: the nav-index tree, nothing hand-added. #}
+    <div class="tap-shell flex{% if full_bleed or fill_viewport %} flex-1 min-h-0{% endif %}">
+    {% if nav_tree %}
+        <aside class="tap-sb" data-tap-sidebar>
+            <nav class="tap-sb-nav" aria-label="Rooms">
+                {% include "tap_web/partials/sidebar_items.html" with nodes=nav_tree depth=0 %}
+            </nav>
+            <button type="button" class="tap-sb-collapse" data-tap-sb-collapse aria-expanded="true" aria-label="Collapse sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>
+            </button>
+        </aside>
+    {% endif %}
+    <main class="flex flex-col flex-1 min-w-0{% if full_bleed or fill_viewport %} min-h-0{% endif %}">
         {# full_bleed (per-page, from layout.full_bleed) drops the centered max-width so graph/dashboard pages fill the viewport; padding gutters stay. #}
         {# Standard pages fill the viewport width up to a cap, then center: laptops fill #}
         {# edge-to-edge, very wide monitors get hemmed in to a readable measure. The cap #}
         {# is screen-independent — it bounds the content, the viewport drives the rest. #}
         <div class="py-6 px-4 sm:px-6 lg:px-8 w-full flex flex-col{% if full_bleed or fill_viewport %} flex-1 min-h-0{% endif %}{% if not full_bleed %} max-w-[1700px] mx-auto{% endif %}">
+            {# Scope lens (req-web-nav-scope-lens): shown only while a scope is set; set from the palette, cleared here. #}
+            {% if tap_scope and grid_readable %}
+            <form class="tap-scope-bar" method="post" action="{% url 'scope' %}" data-tap-scope-bar>
+                {% csrf_token %}
+                <input type="hidden" name="clear" value="1">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <span>Scoped to <strong>{{ tap_scope.text }}</strong>. Tables leave out rows from elsewhere.</span>
+                <button type="submit" class="tap-scope-clear">Clear scope</button>
+            </form>
+            {% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>
+    </div>
+
+    {# Resource drawer (spec-web-drawer.md): one entity's data beside the list, in the overlay region. #}
+    {% if grid_readable %}
+        <aside id="tap-drawer" class="tap-drawer" role="region" aria-labelledby="tap-drawer-title" data-tap-drawer-region hidden>
+            <div class="tap-drawer-body" data-tap-drawer-body></div>
+        </aside>
+    {% endif %}
 
     {% block body_extras %}{% endblock %}
 </body>

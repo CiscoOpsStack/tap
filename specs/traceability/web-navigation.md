@@ -4,9 +4,9 @@
 
 | Bucket | Count |
 | --- | ---: |
-| mapped | 6 |
+| mapped | 9 |
 | excluded | 5 |
-| unbuilt | 2 |
+| unbuilt | 1 |
 | retired | 1 |
 | 0-ACID (payable) | 0 |
 
@@ -28,7 +28,10 @@ Reasons verbatim from each `Trace:` line; ⚠ marks zero-ACID exempt.
 | --- | --- | --- | --- | --- |
 | `req-web-nav-auto-parent` | Implemented | Verified | `build_breadcrumb` | `req-web-nav-auto-parent-3`, `req-web-nav-auto-parent-5` |
 | `req-web-nav-chrome-read-free` | Implemented | Implemented | `breadcrumb` | — |
+| `req-web-nav-command-palette` | In Development | Verified | `search_entities`, `entity_search_view` | `req-web-nav-command-palette-3` |
 | `req-web-nav-explicit-parent-edge` | Implemented | Verified | `effective_path` | `req-web-nav-explicit-parent-edge-1`, `req-web-nav-explicit-parent-edge-2`, `req-web-nav-explicit-parent-edge-3`, `req-web-nav-explicit-parent-edge-4`, `req-web-nav-explicit-parent-edge-5`, `req-web-nav-explicit-parent-edge-6`, `req-web-nav-explicit-parent-edge-7`, `req-web-nav-explicit-parent-edge-8`, `req-web-nav-explicit-parent-edge-9` |
 | `req-web-nav-index-endpoint` | Implemented | Implemented | `nav_index_view` | — |
 | `req-web-nav-page-discoverable` | Implemented | Verified | `Page` | `req-web-nav-page-discoverable-3` |
 | `req-web-nav-page-weight` | Implemented | Implemented | `Page` | — |
+| `req-web-nav-scope-lens` | Implemented | Verified | `scope_options`, `apply_scope`, `scope_view` | `req-web-nav-scope-lens-1`, `req-web-nav-scope-lens-2`, `req-web-nav-scope-lens-3`, `req-web-nav-scope-lens-4` |
+| `req-web-nav-sidebar` | Implemented | Verified | `build_nav_tree` | `req-web-nav-sidebar-1`, `req-web-nav-sidebar-2`, `req-web-nav-sidebar-3`, `req-web-nav-sidebar-4` |
