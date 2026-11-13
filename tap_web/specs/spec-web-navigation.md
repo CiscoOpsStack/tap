@@ -6,7 +6,9 @@ TAP is a graph platform with multiple windows onto a single graph. Every entity 
 
 The chrome is therefore a **breadcrumb header**, always. The header bar is not "where the menu lives." It *is* the menu, in the form of a path-with-options at each segment. Where you are AND what's adjacent to you are the same surface.
 
-Anything not reachable by walking the breadcrumb is reachable through the **command palette** (Cmd-K). A single keyboard surface that fuzzy-searches every Page, every entity, every recent visit, and every account/session control. The palette absorbs everything that doesn't earn permanent chrome — there are no menu drawers, no hamburger icons, no overflow menus. If something doesn't fit on the breadcrumb path, it's one keystroke away.
+Anything not reachable by walking the breadcrumb is reachable through the **command palette** (Cmd-K). A single keyboard surface that fuzzy-searches every Page, every entity, every recent visit, and every account/session control. The palette absorbs everything that doesn't earn permanent chrome — there are no hamburger icons, no overflow menus, and no hand-curated menus. If something doesn't fit on the breadcrumb path, it's one keystroke away.
+
+Beside the content sits one **structural sidebar**: the same page hierarchy the breadcrumb walks, drawn as a tree so the whole collection of rooms is visible at once (`req-web-nav-sidebar`). It is a projection of the nav index, not a menu: nobody adds an item to it; a Page appears there because it is discoverable and nests where it nests. As products grow, a vertical tree scales where a horizontal bar crowds, which is why security consoles moved to one.
 
 A small persistent **mini-graph** in the header's upper-right shows the local neighborhood of the current entity: a tiny live Cytoscape rendering of the current node and its 3–5 closest neighbors, clickable to navigate. This is the platform's *signature* nav affordance — TAP can do this because the graph is the substrate, not a metaphor. Most apps can't.
 
@@ -21,7 +23,7 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | 1. | Extensible | Plugins and pages slot into the breadcrumb hierarchy through data — no per-plugin nav code. |
 | 2. | Expressive | Where the user is, what's at the same level, and what's one graph-step away are all visible simultaneously. |
 | 3. | Affordant | Humans use breadcrumb popovers and Cmd-K; AI uses URLs and a machine-readable nav index. Both are text-first by design. |
-| 4. | Classy | No hamburger, no overflow menu, no left-rail drawer. The chrome shrinks instead of growing with features. |
+| 4. | Classy | No hamburger, no overflow menu, no hand-curated menu. The one sidebar is derived from data, so it grows with pages, never with features. |
 | 5. | Singular | One header bar, one palette, one mini-graph. New features earn placement; they don't accumulate as chrome. |
 
 ## Requirement Status
@@ -32,10 +34,12 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-segment-interactions | [Segment Interactions](#segment-interactions) | Implemented | Single-click navigates; chevron-click shows immediate sibling popover; alt-click opens expanded column-view |
 | req-web-nav-auto-parent | [Auto-Derived Parent From URL](#auto-derived-parent-from-url) | Implemented | Each URL segment is a breadcrumb level unless an explicit `NESTS_UNDER` parent overrides it (`req-web-nav-explicit-parent-edge`) |
 | req-web-nav-explicit-parent-edge | [Explicit Parent Edge](#explicit-parent-edge) | Implemented | A `NESTS_UNDER` edge from one Page to another moves the source page under the target in every navigation surface; URLs never change |
-| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K + chrome affordance + Pages index landed; entity / recent-visits / migrated-chrome indexing still Proposed (ACIDs -3 + -4) |
+| req-web-nav-command-palette | [Command Palette Affordance](#command-palette-affordance) | In Development | Cmd-K, chrome affordance, and the Pages, Resources, Recent and Commands groups landed; migrated chrome (ACID -4) still Proposed |
+| req-web-nav-scope-lens | [Scope Lens](#scope-lens) | Implemented | One session-held dimension filter (for example an AWS account) narrows every table panel server-side; set from the palette, shown and cleared from a bar above the content |
 | req-web-nav-mini-graph | [Mini-Graph Affordance](#mini-graph-affordance) | Backlog | Reserved chrome slot held; mini-graph itself is backlog pending sibling `spec-viz-mini-map.md` |
 | req-web-nav-user-menu | [User Menu](#user-menu) | Implemented | Avatar + identity + Sign out in the upper-right; consumes the auth identity (`request.user`), logs out via `tap_auth` `/auth/logout/` |
-| req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Implemented | Hard prohibition; defends the design against drift |
+| req-web-nav-no-hamburger | [No Hamburger Menu](#no-hamburger-menu) | Implemented | Hard prohibition on hamburger / overflow / hand-curated menus; the derived sidebar (`req-web-nav-sidebar`) is the one structural exception |
+| req-web-nav-sidebar | [Structural Sidebar](#structural-sidebar) | Implemented | A left rail beside the content renders the nav-index tree (discoverable Pages, `NESTS_UNDER` parents, `nav_weight` order); no hand-added items; collapses to an icon rail, never to a hamburger |
 | req-web-nav-chrome-budget | [Chrome Budget](#chrome-budget) | Implemented | Header contents enumerated and capped at six elements |
 | req-web-nav-index-endpoint | [Machine-Readable Nav Index](#machine-readable-nav-index) | Implemented | `/__nav-index.json` enumerates reachable pages + canonical breadcrumb paths |
 | req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Implemented | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
@@ -223,7 +227,7 @@ Status: `In Development`
 
 MVP scope landed (Phase 4 + palette tree mode in Phase 6): Cmd-K binding, header affordance button, fuzzy-search input, tree-mode rendering of every registered Page on empty query, flat ranked list on typed query, click-or-Enter to navigate, click-outside/Esc to dismiss. Implementation in `tap_web/static/tap_web/js/palette.js` + `tap_web/static/tap_web/css/palette.css`.
 
-ACIDs -1 (Keyboard Summonable) and -2 (Header Affordance) are `Implemented`. ACIDs -3 (Indexes Pages And Entities) and -4 (Subsumes Migrated Chrome) stay `Proposed`: the palette currently indexes Pages only, not entities / recent visits / platform commands, and the three placeholder chrome icons (admin / history / layers) were removed in Phase 2 but not yet re-added as palette commands. Promoting -3 and -4 is the next palette work block.
+ACIDs -1 (Keyboard Summonable), -2 (Header Affordance) and -3 (Indexes Pages And Entities) are `Implemented`. The palette groups results as Recent (the last 10 pages and drawers opened, kept in browser `localStorage`), Commands (the scope lens of `req-web-nav-scope-lens`), Pages, and Resources (TAP entities by name, natural key, ARN fragment or entity id, from `/__entity-search.json`). ACID -4 (Subsumes Migrated Chrome) stays `Proposed`: the history and layers controls are not yet palette commands.
 
 A keyboard-summonable command palette (Cmd-K on macOS, Ctrl-K elsewhere) is the platform-level reach-anywhere surface. Everything not reachable through the breadcrumb path is reachable through the palette. Detailed behavior of the palette itself lives in a sibling spec (`tap_web/specs/spec-web-command-palette.md`); this requirement enumerates only the palette's *contract with the navigation system*.
 
@@ -246,13 +250,42 @@ For AI consumers, the palette is the primary cross-context action surface: a tex
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-web-nav-command-palette-1 | Keyboard Summonable | Implemented | The palette opens via Cmd-K (macOS) or Ctrl-K (other platforms) from any TAP page. | Vanilla keydown listener in `palette.js`. |
-| req-web-nav-command-palette-2 | Header Affordance | Implemented | A visible header affordance opens the palette and communicates the keyboard shortcut. | 🔍 + `⌘K` chip in the chrome (`tap-palette-affordance` class), `title="Search pages (⌘K)"`. |
-| req-web-nav-command-palette-3 | Indexes Pages And Entities | Proposed | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | Pages indexing landed; entities + recent + commands are next-iteration work. |
+| req-web-nav-command-palette-2 | Header Affordance | Implemented | A visible header affordance opens the palette and communicates the keyboard shortcut. | 🔍 + `⌘K` chip in the chrome (`tap-palette-affordance` class), `title="Search pages and resources (⌘K)"`. |
+| req-web-nav-command-palette-3 | Indexes Pages And Entities | Implemented | The palette searches across registered Pages, TAP entities, recent visits, and platform commands. | Entities come from `/__entity-search.json` (`tap_web/entity_search.py`): plugin domain types only, matched on name, natural key or entity id, exact then prefix first, gated on `grid.read`. Enter opens the resource drawer; Shift-Enter opens the full page. `tap_web/tests/test_entity_search_and_scope.py`. |
 | req-web-nav-command-palette-4 | Subsumes Migrated Chrome | Proposed | The clock/history, layers/dimension, and user/account controls that today live in the header bar move into the palette. | Migration paused: the three placeholder icons were deleted in Phase 2 without being re-added as palette commands. Requires the platform-commands surface that ACID-3's "commands" portion would bring. |
 
 #### Future
 
 Plugin-contributed commands (each plugin can register palette commands that operate in its domain) — sibling-spec concern. Per-context palette filtering ("only search within the current breadcrumb subtree") — sibling-spec concern.
+
+### Scope Lens
+----
+RID: `req-web-nav-scope-lens`
+
+Status: `Implemented`
+
+#### Status Details
+
+`tap_web/scope.py` holds the lens; `/__scope.json` reads and sets it; the table panel applies it; `base.html` renders the scope bar. Tests: `tap_web/tests/test_entity_search_and_scope.py`.
+
+An operator working one account or region should not have to re-filter every table. The scope lens is one dimension key and value (for example `aws_account = 123456789012`) held in the session. While it is set, every table panel leaves out rows whose entity carries that dimension key with a different value, and says how many it left out.
+
+#### Implementation
+
+- The offered scopes are the entity dimension keys that carry at least two values across live entities, excluding reserved `tap.` keys. A plugin may register a labeler that names the values (for example an account id by its account name).
+- The palette lists the offered scopes as commands (type `scope` to see them all) and a Clear scope command while one is set. Nothing is added to the header chrome (`req-web-nav-chrome-budget`, `req-web-nav-no-hamburger-3`).
+- The filter is applied server-side in the table panel before facets and counts, so totals, facets and the visible rows agree.
+- Rows with no entity, or whose entity lacks the scoped key, are kept: the lens narrows, it never hides what it cannot judge.
+- The scope is advisory display state. It is not an authorization boundary and does not change what a caller may read.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-scope-lens-1 | Offered Scopes Come From Dimensions | Implemented | The offered scopes are the non-reserved dimension keys with two or more values; plugin labelers name the values. | `scope_options()`, `register_scope_labeler()`. |
+| req-web-nav-scope-lens-2 | Tables Leave Out Other-Scope Rows | Implemented | A table panel leaves out rows whose entity has the scoped key with another value, keeps rows it cannot judge, and shows a note with the count left out. | `apply_scope()`; the row's entity is the drawer `id_field`, else `entity_id`. |
+| req-web-nav-scope-lens-3 | Set And Clear Through One Endpoint | Implemented | `POST /__scope.json` sets a scope from the offered list (anything else is refused with 400) or clears it with `clear=1`; `GET` returns the active scope and options. Gated on `grid.read`. | |
+| req-web-nav-scope-lens-4 | Visible While Active | Implemented | While a scope is set, a bar above the content names it and offers Clear scope; a form post returns only to a same-origin `next`. | `url_has_allowed_host_and_scheme`. |
 
 
 ### Mini-Graph Affordance
@@ -338,13 +371,15 @@ Status: `Implemented`
 
 Trace: `process` — a standing design prohibition; code cannot demonstrate an absence, review discipline holds the line
 
-The TAP web platform has no hamburger menu, no overflow menu, no left-rail navigation drawer, and no equivalent collapse-everything-here surface. This is a hard prohibition; it exists to defend the design against the gravitational pull of "just add one more menu item somewhere."
+The TAP web platform has no hamburger menu, no overflow menu, no hand-curated navigation menu, and no equivalent collapse-everything-here surface. This is a hard prohibition; it exists to defend the design against the gravitational pull of "just add one more menu item somewhere."
+
+The one exception is the structural sidebar (`req-web-nav-sidebar`, revision 2026-11). It is admitted because it cannot accumulate: its items are the discoverable Pages, placed by `NESTS_UNDER` and ordered by `nav_weight`, and there is no API, config key or template slot that adds anything else to it. A rail that aggregated hand-picked links, feature shortcuts or settings would still be rejected under this requirement.
 
 #### Implementation
 
-- No three-line hamburger icon anywhere in the chrome.
+- No three-line hamburger icon anywhere in the chrome, including at narrow widths (the sidebar collapses to an icon rail instead).
 - No "More" or "..." overflow control in the header.
-- No collapsible left rail (or right rail) that aggregates menu items.
+- No rail (left or right) that aggregates hand-chosen menu items. The structural sidebar renders the nav index only; the resource drawer (`spec-web-drawer.md`) shows one entity's data, not navigation.
 - Features that would otherwise want a menu entry go into the command palette.
 
 The reason this is a *requirement*, not a *guideline*: hamburger menus are the path of least resistance for any feature owner who wants their thing reachable. Without an explicit "no" in the spec, the chrome accumulates one item at a time until it becomes the same SaaS dashboard everyone else builds. The prohibition is the design.
@@ -357,13 +392,40 @@ Reviewers can cite `req-web-nav-no-hamburger` when rejecting PRs that try to add
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-no-hamburger-1 | No Hamburger Icon | Implemented | No three-line / hamburger / overflow icon exists in any TAP chrome. | Verified by `tap_web/tests/test_navigation.py` chrome-affordance tests. |
-| req-web-nav-no-hamburger-2 | No Menu Drawer | Implemented | No collapsible side-drawer that aggregates navigation items exists in any TAP chrome. | The samsite-nav-links hero-card panel was dropped in Phase 2 as a concrete enactment of this rule. |
+| req-web-nav-no-hamburger-1 | No Hamburger Icon | Implemented | No three-line / hamburger / overflow icon exists in any TAP chrome. | Review discipline; `tap_web/tests/test_sidebar.py` asserts the narrow-width sidebar renders no hamburger control. |
+| req-web-nav-no-hamburger-2 | No Hand-Curated Menu Drawer | Implemented | No side-drawer that aggregates hand-chosen navigation items exists in any TAP chrome; the only rail is the derived sidebar (`req-web-nav-sidebar`). | The samsite-nav-links hero-card panel was dropped in Phase 2 as a concrete enactment of this rule. |
 | req-web-nav-no-hamburger-3 | Features Route To Palette | Implemented | New features that need broad reach are implemented as palette entries, not as new chrome elements. | Standing rule — enforced at review time, defended by this requirement. |
 
 #### Future
 
 If a real, repeated case for menu-like chrome surfaces emerges, the response is to revisit this requirement in spec — not to bypass it in code.
+
+
+### Structural Sidebar
+----
+RID: `req-web-nav-sidebar`
+
+Status: `Implemented`
+
+A left rail beside the page content renders the page hierarchy as a tree: every discoverable Page, grouped under its top-level ancestor, children indented under their parent, siblings ordered by `nav_weight` (higher first) then name. It answers the question the breadcrumb cannot: *what rooms exist here at all, and where am I among them?*
+
+#### Implementation
+
+- **One source.** The tree is built from the same query and parent resolution as `/__nav-index.json` (`req-web-nav-index-endpoint`, `req-web-nav-explicit-parent-edge`, `req-web-nav-page-discoverable`, `req-web-nav-page-weight`), exposed to templates by the `tap_web.navigation.nav_tree` context processor. The sidebar and the nav index cannot disagree.
+- **No hand-added items.** Nothing but Pages appears in the rail; there is no config key, template block or API for extra links (`req-web-nav-no-hamburger`).
+- **Current page.** The item whose URL is the current path (or its nearest listed ancestor, for a non-discoverable page) carries `aria-current="page"`; its ancestors are expanded.
+- **Collapse, not hide.** A toggle collapses the rail to an icon-and-initial strip; the choice is remembered per browser (`localStorage`). Under 900px wide the rail starts collapsed. It never becomes a hamburger or an off-canvas menu.
+- **Read-free.** For a caller without `grid.read` the sidebar is not rendered (`req-web-nav-chrome-read-free`).
+- **Accessible.** `<nav aria-label="Rooms">` inside an `<aside>`; a real `<a href>` per page; the toggle is a `<button>` with `aria-expanded` and an accessible name.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-nav-sidebar-1 | Tree From Nav Index | Implemented | The sidebar lists exactly the discoverable Pages, nested by effective parent, in `nav_weight` order. | `tap_web/tests/test_sidebar.py` |
+| req-web-nav-sidebar-2 | Current Page Marked | Implemented | The current page's item (or nearest listed ancestor) carries `aria-current="page"`. | `tap_web/tests/test_sidebar.py` |
+| req-web-nav-sidebar-3 | Collapse To Icon Rail | Implemented | A labelled toggle collapses the rail; no hamburger control exists at any width. | `tap_web/tests/test_sidebar.py` + browser QA (`qa-page`) |
+| req-web-nav-sidebar-4 | Gated On Read | Implemented | A caller without `grid.read` gets no sidebar. | `tap_web/tests/test_sidebar.py` |
 
 
 ### Chrome Budget
@@ -388,6 +450,8 @@ The header bar contains exactly the following, in this left-to-right order:
 6. **User menu** — the signed-in actor's avatar + identity + Sign out, far-right (see `req-web-nav-user-menu`). Present only when authenticated; consumes the auth identity and logs out via `tap_auth`'s `/auth/logout/`.
 
 No seventh element. Features that earn permanent chrome require a new requirement in this spec.
+
+The budget counts the **header bar**. Two surfaces sit outside it by their own requirements and add nothing to the header: the structural sidebar beside the content (`req-web-nav-sidebar`), whose items are data, and the resource drawer in the overlay region (`spec-web-drawer.md`), which appears only while an entity is being inspected.
 
 #### Development
 

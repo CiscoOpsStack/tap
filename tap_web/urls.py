@@ -4,6 +4,7 @@ URL patterns (evaluated in order):
     /panel/<slug>--<uuid>/edit/                Panel editor
     /panel/<slug>--<uuid>/                     Panel HTMX fragment endpoint
     /object/<entity-type>/<slug>--<uuid>/edit/ Generic object editor
+    /object/<entity-type>/<slug>--<uuid>/drawer/ Resource drawer fragment
     /object/<entity-type>/<slug>--<uuid>/      Generic object viewer
     /                                          Landing page (or placeholder if none configured)
     /<path:page_slug>                          Catch-all dynamic page resolution
@@ -17,12 +18,27 @@ from django.urls import path
 
 from tap_web import views
 
+try:
+    from tap_plugin.ccb.views import transition_view as ccb_transition_view
+except ModuleNotFoundError:
+    ccb_transition_view = None  # type: ignore[assignment]
+
+try:
+    from tap_plugin.assistant.views import chat_view as assistant_chat_view
+except ModuleNotFoundError:
+    assistant_chat_view = None  # type: ignore[assignment]
+
 urlpatterns = [
     path("panel/<str:panel_url_id>/edit/", views.panel_edit_view, name="panel-edit"),
     path("panel/<str:panel_url_id>/", views.panel_view, name="panel"),
     path("object/<str:entity_type>/<str:object_url_id>/edit/", views.object_edit_view, name="object-edit"),
+    path("object/<str:entity_type>/<str:object_url_id>/drawer/", views.object_drawer_view, name="object-drawer"),
     path("object/<str:entity_type>/<str:object_url_id>/", views.object_view, name="object-view"),
     path("__nav-index.json", views.nav_index_view, name="nav-index"),
+    path("__entity-search.json", views.entity_search_view, name="entity-search"),
+    path("__scope.json", views.scope_view, name="scope"),
+    path("__query/", views.query_builder_view, name="query-builder"),
+    path("__query/export.grift.json", views.query_export_view, name="query-export"),
     path("", views.landing_view, name="landing"),
     # samsite per-type viewer pages — entity_type is pinned per route so the
     # shared viewer_panel resolves the right model from <uuid:entity_id>.
@@ -58,3 +74,11 @@ urlpatterns = [
     ),
     path("<path:page_slug>", views.page_view, name="page"),
 ]
+
+# The change board's move action. Plugin URLs are not loaded on their own, and the
+# catch-all above would swallow this path, so it is inserted only when the plugin
+# is installed. Other boots never import it.
+if ccb_transition_view is not None:
+    urlpatterns.insert(-1, path("stage/changes/move", ccb_transition_view, name="ccb-transition"))
+if assistant_chat_view is not None:
+    urlpatterns.insert(-1, path("stage/assistant/chat", assistant_chat_view, name="assistant-chat"))
