@@ -2,7 +2,8 @@
 
 Domain entities are the ones a plugin's models declare; platform rows (pages, panels, searches, batches, edges)
 are not offered, because the palette already lists pages and the rest are machinery. A term matches an entity's
-name, its natural key, or (for a UUID) its entity id. Exact matches rank first, then prefixes, then the rest.
+name or (for a UUID) its entity id. Exact matches rank first, then prefixes, then the rest. The natural-key column
+is a placeholder nothing reads yet (req-grid-entity-natural-key-11), so it is not searched.
 """
 
 from __future__ import annotations
@@ -45,11 +46,11 @@ def domain_types() -> tuple[str, ...]:
     return _domain_types_cached(tuple(sorted(list_entity_types())))
 
 
-def _rank(name: str, natural_key: str, term: str) -> int:
-    low, key = name.lower(), natural_key.lower()
-    if low == term or key == term:
+def _rank(name: str, term: str) -> int:
+    low = name.lower()
+    if low == term:
         return 0
-    if low.startswith(term) or key.startswith(term):
+    if low.startswith(term):
         return 1
     return 2
 
@@ -58,7 +59,7 @@ def search_entities(term: str, limit: int = DEFAULT_LIMIT) -> list[EntityHit]:
     """Domain entities matching ``term``, best first; empty for a term shorter than two characters.
 
     TAP-IMPLEMENTS: req-web-nav-command-palette@feedec1b917b/dab32a8ba2a2 (derivation) — the entity index behind the palette:
-        name, natural key or entity id, plugin-declared types only, exact then prefix then substring.
+        name or entity id, plugin-declared types only, exact then prefix then substring.
 
     The caller must already hold ``grid.read``.
     """
@@ -72,22 +73,22 @@ def search_entities(term: str, limit: int = DEFAULT_LIMIT) -> list[EntityHit]:
         return []
     limit = max(1, min(limit, MAX_LIMIT))
     types = domain_types()
-    match = Q(name__icontains=term) | Q(natural_key__icontains=term)
+    match = Q(name__icontains=term)
     try:
         match |= Q(pk=uuid.UUID(term))
     except ValueError:
         pass
     rows = list(
         Entity.objects.filter(match, deleted_at__isnull=True, entity_type__in=types)
-        .values_list("pk", "entity_type", "name", "natural_key")
+        .values_list("pk", "entity_type", "name")
         .order_by("name")[: limit * 6]
     )
     low = term.lower()
-    rows.sort(key=lambda r: (_rank(r[2] or "", str(r[3] or ""), low), len(r[2] or ""), r[2] or ""))
+    rows.sort(key=lambda r: (_rank(r[2] or "", low), len(r[2] or ""), r[2] or ""))
     rows = rows[:limit]
     names = _type_names({r[1] for r in rows})
     hits = []
-    for pk, entity_type, name, _ in rows:
+    for pk, entity_type, name in rows:
         drawer_url, page_url = object_urls(entity_type, name or str(pk), pk)
         hits.append(
             EntityHit(

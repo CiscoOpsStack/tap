@@ -7,6 +7,7 @@ URL patterns (evaluated in order):
     /object/<entity-type>/<slug>--<uuid>/drawer/ Resource drawer fragment
     /object/<entity-type>/<slug>--<uuid>/      Generic object viewer
     /                                          Landing page (or placeholder if none configured)
+    /plugins/<slug>/...                        A plugin's own views (tap_plugin.<slug>.urls)
     /<path:page_slug>                          Catch-all dynamic page resolution
 
 The catch-all must come last within this file.
@@ -14,19 +15,35 @@ In tap/urls.py, tap_web must be the final include (after admin, api, viz)
 because path("") matches any prefix and would shadow other apps' routes.
 """
 
-from django.urls import path
+import importlib
+import importlib.util
 
+from django.apps import apps
+from django.urls import include, path
+from django.urls.resolvers import URLPattern, URLResolver
+
+from tap_plugins.base import TapPluginConfig
 from tap_web import views
 
-try:
-    from tap_plugin.ccb.views import transition_view as ccb_transition_view
-except ModuleNotFoundError:
-    ccb_transition_view = None  # type: ignore[assignment]
 
-try:
-    from tap_plugin.assistant.views import chat_view as assistant_chat_view
-except ModuleNotFoundError:
-    assistant_chat_view = None  # type: ignore[assignment]
+def plugin_urlpatterns() -> list[URLResolver]:
+    """Mount each installed plugin's ``urls.urlpatterns`` at ``plugins/<slug>/``.
+
+    A plugin names its views ``<slug>:<name>``. The prefix keeps plugin routes out of
+    the page namespace the catch-all serves, the way NetBox confines plugins to
+    ``/plugins``; a plugin with no ``urls`` module contributes nothing.
+    """
+    mounted: list[URLResolver] = []
+    for config in apps.get_app_configs():
+        if not isinstance(config, TapPluginConfig):
+            continue
+        module_name = f"{config.name}.urls"
+        if importlib.util.find_spec(module_name) is None:
+            continue
+        patterns: list[URLPattern | URLResolver] = list(importlib.import_module(module_name).urlpatterns)
+        mounted.append(path(f"plugins/{config.label}/", include((patterns, config.label), namespace=config.label)))
+    return mounted
+
 
 urlpatterns = [
     path("panel/<str:panel_url_id>/edit/", views.panel_edit_view, name="panel-edit"),
@@ -72,13 +89,6 @@ urlpatterns = [
         {"page_slug": "samsite/artifact", "entity_type": "compliance_artifact"},
         name="samsite-artifact",
     ),
+    *plugin_urlpatterns(),
     path("<path:page_slug>", views.page_view, name="page"),
 ]
-
-# The change board's move action. Plugin URLs are not loaded on their own, and the
-# catch-all above would swallow this path, so it is inserted only when the plugin
-# is installed. Other boots never import it.
-if ccb_transition_view is not None:
-    urlpatterns.insert(-1, path("stage/changes/move", ccb_transition_view, name="ccb-transition"))
-if assistant_chat_view is not None:
-    urlpatterns.insert(-1, path("stage/assistant/chat", assistant_chat_view, name="assistant-chat"))
