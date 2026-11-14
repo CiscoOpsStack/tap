@@ -362,7 +362,19 @@ case "${TAP_PROCESS_ROLE}" in
 esac
 if [ "${runs_migrate}" = "1" ]; then
     echo "==> Running database migrations..."
-    uv run python manage.py migrate --noinput || { emit_abort migrate "database migration failed (see traceback above)"; exit 1; }
+    # The migrate role runs TAP_MIGRATE_STEPS targets in order, then the full migrate
+    # (req-tap-serving-process-roles-5). Every other role runs the full migrate only.
+    steps="all"
+    if [ "${TAP_PROCESS_ROLE}" = "migrate" ]; then
+        steps="$(uv run python -c 'from tap.serving import migrate_steps; print("\n".join(" ".join(s) or "all" for s in migrate_steps()))')" \
+            || { emit_abort migrate "TAP_MIGRATE_STEPS is invalid (see the error above)"; exit 1; }
+    fi
+    while IFS= read -r target; do
+        [ "${target}" = "all" ] && target=""
+        [ -n "${target}" ] && echo "==> migrate ${target}"
+        # shellcheck disable=SC2086 # target is "<app>" or "<app> <migration>", split on purpose
+        uv run python manage.py migrate --noinput ${target} || { emit_abort migrate "database migration failed (see traceback above)"; exit 1; }
+    done <<< "${steps}"
 else
     # Never migrate from two places. Wait for whoever owns it, then fail loudly rather than
     # serve or work against a schema this code does not expect.
@@ -381,6 +393,12 @@ else
 fi
 
 if [ "${TAP_PROCESS_ROLE}" = "migrate" ]; then
+    # Split roles never run the boot orchestrator, so the built-in actors system work runs as
+    # (tap_cares.scheduler and others) come from here. sync_auth is idempotent.
+    if [ "${TAP_MIGRATE_SYNC_AUTH:-1}" = "1" ]; then
+        echo "==> Role migrate: sync_auth (capabilities, protected groups, built-in actors)..."
+        uv run python manage.py sync_auth || { emit_abort migrate "sync_auth failed (see traceback above)"; exit 1; }
+    fi
     echo "==> Role migrate: schema is current; exiting."
     exit 0
 fi

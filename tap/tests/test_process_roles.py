@@ -89,6 +89,36 @@ def test_settings_follow_the_role_in_force() -> None:
     assert settings.STEADY_QUEUE.skip_recurring is not serving.role_runs_recurring()
 
 
+@pytest.mark.spec("req-tap-serving-process-roles-5")
+def test_migrate_steps_default_to_the_full_migrate() -> None:
+    assert serving.migrate_steps("") == [[]]
+    assert serving.migrate_steps("all") == [[]]
+
+
+@pytest.mark.spec("req-tap-serving-process-roles-5")
+def test_migrate_steps_keep_their_order_and_end_with_the_full_migrate() -> None:
+    assert serving.migrate_steps(" aws_core 0055_rename_aws_dimensions; tap_grid ;all") == [
+        ["aws_core", "0055_rename_aws_dimensions"],
+        ["tap_grid"],
+        [],
+    ]
+
+
+@pytest.mark.spec("req-tap-serving-process-roles-5")
+@pytest.mark.parametrize("raw", ["aws_core 55", "aws_core; rm -rf /", "Aws_core", "aws_core 0055_x extra"])
+def test_migrate_steps_refuse_anything_but_app_and_migration(raw: str) -> None:
+    with pytest.raises(ValueError, match="TAP_MIGRATE_STEPS"):
+        serving.migrate_steps(raw)
+
+
+@pytest.mark.spec("req-tap-serving-process-roles-5")
+def test_entrypoint_migrate_role_runs_steps_then_sync_auth() -> None:
+    text = (_REPO_ROOT / "docker" / "entrypoint.sh").read_text()
+    assert "from tap.serving import migrate_steps" in text
+    assert text.index("migrate_steps()") < text.index("manage.py sync_auth")
+    assert 'TAP_MIGRATE_SYNC_AUTH:-1' in text
+
+
 @pytest.mark.spec("req-tap-serving-process-roles-3")
 @pytest.mark.spec("req-tap-serving-process-roles-4")
 def test_entrypoint_knows_every_role() -> None:
