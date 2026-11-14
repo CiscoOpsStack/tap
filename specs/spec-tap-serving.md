@@ -1354,6 +1354,7 @@ container runs the supervisor as its only process, so the supervisor dying ends 
 | req-tap-serving-process-roles-2 | Split Roles Add Up | Implemented | `web`, `worker` and `scheduler` together run exactly the queues, dispatchers and recurring tick of `all`, and their connection budgets sum to the `all` budget. | `tap/tests/test_process_roles.py` |
 | req-tap-serving-process-roles-3 | One Migrator | Implemented | `worker` and `scheduler` never migrate; they wait for the schema and abort after the wait. | `docker/entrypoint.sh` |
 | req-tap-serving-process-roles-4 | Queue Supervisor Is The Container Process | Implemented | A `worker` or `scheduler` container `exec`s the Steady Queue supervisor, so its death ends the container. | `docker/entrypoint.sh` |
+| req-tap-serving-process-roles-5 | Ordered Migrate Steps And Built-In Actors | Implemented | The `migrate` role runs each `TAP_MIGRATE_STEPS` target (`<app>` or `<app> <NNNN_name>`, `;`-separated) in order, then the full `migrate`, then `sync_auth` unless `TAP_MIGRATE_SYNC_AUTH=0`. An invalid step aborts before any migration. Other roles run the full `migrate` only. | `tap/tests/test_process_roles.py`, `docker/entrypoint.sh` |
 
 ### Deployment Behind A Proxy
 ----
