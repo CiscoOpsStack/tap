@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import sys
 
 # The configured database aliases, for the connection budget below. A stdlib-only,
@@ -606,6 +607,34 @@ def role_runs_recurring(role: str | None = None) -> bool:
     """True when this role owns the recurring tick. Only `all` and `scheduler` do."""
     chosen = process_role() if role is None else role
     return chosen in (ROLE_ALL, ROLE_SCHEDULER)
+
+
+#: Ordered `migrate` targets for the `migrate` role, `;`-separated, such as
+#: ``aws_core 0055_rename_aws_dimensions;all``.
+MIGRATE_STEPS_ENV = "TAP_MIGRATE_STEPS"
+_MIGRATE_STEP = re.compile(r"\A[a-z_][a-z0-9_]*( [0-9]{4}_[A-Za-z0-9_]+)?\Z")
+
+
+def migrate_steps(raw: str | None = None) -> list[list[str]]:
+    """The `manage.py migrate` arguments the `migrate` role runs, in order.
+
+    A data migration that rewrites rows another app's later migration also reads can depend on
+    running first, and Django orders apps only by declared dependencies. A deployment names that
+    order here. The full `migrate` always runs last, so any list still ends with a current schema.
+
+    Raises:
+        ValueError: if a step is not ``<app>`` or ``<app> <NNNN_name>``.
+    """
+    text = os.environ.get(MIGRATE_STEPS_ENV, "") if raw is None else raw
+    steps: list[list[str]] = []
+    for part in (p.strip() for p in text.split(";")):
+        if not part or part == "all":
+            continue
+        if not _MIGRATE_STEP.match(part):
+            raise ValueError(f"{MIGRATE_STEPS_ENV} step {part!r} is not '<app>' or '<app> <NNNN_name>'")
+        steps.append(part.split())
+    steps.append([])
+    return steps
 
 
 def role_connection_budget(role: str, *, web_workers: int | None = None, aliases: int | None = None) -> int:
