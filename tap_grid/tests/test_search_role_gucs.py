@@ -1,9 +1,11 @@
-"""Superuser-only search-role GUCs when boot runs as a non-superuser (req-grid-search-readonly-role.sec-6).
+"""Superuser-only search-role GUCs when boot is not a superuser (req-grid-search-readonly-role.sec-6).
 
 On managed PostgreSQL (RDS, Cloud SQL) the app role that boot connects as is not a
 superuser, so ``ALTER ROLE … SET temp_file_limit`` fails with "permission denied to set
 parameter". Provisioning must skip such a parameter, log it, and still pin the
-user-settable ones. The superuser path is covered authentically by
+user-settable ones. The decision is made from ``has_parameter_privilege``, not from the
+``pg_settings.context`` label, so the skip holds whatever context the server reports.
+The superuser path is covered authentically by
 ``test_search_role.py::TestProvisionedRoleEnforcement::test_resource_gucs_are_role_pinned``;
 these tests drive the non-superuser branch with a scripted cursor, because the test
 database connects as a superuser.
@@ -19,12 +21,9 @@ import pytest
 
 from tap_grid import search_role
 
-_CONTEXTS = {
-    "statement_timeout": "user",
-    "lock_timeout": "user",
-    "work_mem": "user",
-    "temp_file_limit": "superuser",
-}
+# Parameters that Postgres only lets a superuser SET (PGC_SUSET), e.g. temp_file_limit.
+_SUPERUSER_ONLY = {"temp_file_limit"}
+_KNOWN = {"statement_timeout", "lock_timeout", "work_mem", "temp_file_limit"}
 _GUCS = {"statement_timeout": "30s", "lock_timeout": "5s", "work_mem": "64MB", "temp_file_limit": "1GB"}
 
 
@@ -44,11 +43,12 @@ class _Cursor:
         self.statements.append(sql)
         if sql.startswith("SELECT 1 FROM pg_roles"):
             self._row = (1,)
-        elif sql.startswith("SELECT rolsuper"):
-            self._row = (self.superuser,)
-        elif sql.startswith("SELECT context FROM pg_settings"):
+        elif sql.startswith("SELECT has_parameter_privilege"):
             name = params[0] if params else ""
-            self._row = (_CONTEXTS[name],) if name in _CONTEXTS else None
+            if name in _KNOWN:
+                self._row = (self.superuser or name not in _SUPERUSER_ONLY,)
+            else:
+                self._row = None
         else:
             self._row = None
 

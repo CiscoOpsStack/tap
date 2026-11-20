@@ -170,25 +170,27 @@ def provision_search_role(
                 cur.execute(f'GRANT SELECT ON "{table}" TO "{role}"')
 
             # 4. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
-            #    A superuser-only parameter (pg_settings.context = 'superuser' or
-            #    'superuser-backend', e.g. temp_file_limit) can be pinned only by a superuser.
-            #    Boot runs as the non-superuser app role that db_bootstrap creates, so such a
-            #    parameter is skipped and logged rather than aborting the whole boot. The
-            #    user-settable parameters are still pinned. A superuser run pins all of them.
-            cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
-            (acting_is_superuser,) = cur.fetchone() or (False,)
+            #    A superuser-only parameter (e.g. temp_file_limit) can be pinned only by a role
+            #    that holds SET privilege on it. Boot runs as the non-superuser app role that
+            #    db_bootstrap creates, so such a parameter is skipped and logged rather than
+            #    aborting the whole boot. The user-settable parameters are still pinned.
+            #    Privilege is asked of Postgres directly (has_parameter_privilege), not inferred
+            #    from pg_settings.context, which can differ on managed PostgreSQL. An unknown
+            #    parameter has no row here and falls through to ALTER, which reports it.
             for guc_name, guc_value in gucs.items():
                 gname = _validate_identifier(guc_name)
                 gval = _validate_guc_value(str(guc_value))
-                cur.execute("SELECT context FROM pg_settings WHERE name = %s", [guc_name])
+                cur.execute(
+                    "SELECT has_parameter_privilege(current_user, name, 'SET') "
+                    "FROM pg_settings WHERE name = %s",
+                    [guc_name],
+                )
                 row = cur.fetchone()
-                context = row[0] if row else "user"
-                if not acting_is_superuser and context in ("superuser", "superuser-backend"):
+                if row is not None and not row[0]:
                     logger.warning(
-                        "[5e71] search-role GUC %s is superuser-only (context=%s) and the boot role is "
-                        "not a superuser; not pinned on %s. Statement and lock timeouts and work_mem still apply.",
+                        "[5e71] search-role GUC %s is superuser-only and the boot role has no SET "
+                        "privilege on it; not pinned on %s. Statement and lock timeouts and work_mem still apply.",
                         guc_name,
-                        context,
                         role_name,
                     )
                     continue
