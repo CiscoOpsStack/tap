@@ -1,6 +1,6 @@
 """Provisioning for the least-privilege read-only search role (``tap_gryphon_ro``).
 
-TAP-IMPLEMENTS: req-boot-search-role@e7469cffdc86/e8c3499fff8b (derivation) — the
+TAP-IMPLEMENTS: req-boot-search-role@7b1c58810647/85174b6b1a32 (derivation) — the
     least-privilege search-role provisioning the boot grid-infra phase calls.
 
 ``req-grid-search-readonly-role.sec`` + ``req-boot-search-role``. The ``search_readonly``
@@ -170,9 +170,30 @@ def provision_search_role(
                 cur.execute(f'GRANT SELECT ON "{table}" TO "{role}"')
 
             # 4. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
+            #    A superuser-only parameter (e.g. temp_file_limit) can be pinned only by a role
+            #    that holds SET privilege on it. Boot runs as the non-superuser app role that
+            #    db_bootstrap creates, so such a parameter is skipped and logged rather than
+            #    aborting the whole boot. The user-settable parameters are still pinned.
+            #    Privilege is asked of Postgres directly (has_parameter_privilege), not inferred
+            #    from pg_settings.context, which can differ on managed PostgreSQL. An unknown
+            #    parameter has no row here and falls through to ALTER, which reports it.
             for guc_name, guc_value in gucs.items():
                 gname = _validate_identifier(guc_name)
                 gval = _validate_guc_value(str(guc_value))
+                cur.execute(
+                    "SELECT has_parameter_privilege(current_user, name, 'SET') "
+                    "FROM pg_settings WHERE name = %s",
+                    [guc_name],
+                )
+                row = cur.fetchone()
+                if row is not None and not row[0]:
+                    logger.warning(
+                        "[5e71] search-role GUC %s is superuser-only and the boot role has no SET "
+                        "privilege on it; not pinned on %s. Statement and lock timeouts and work_mem still apply.",
+                        guc_name,
+                        role_name,
+                    )
+                    continue
                 cur.execute(f'ALTER ROLE "{role}" SET {gname} = {_quote_literal(gval)}')
         return granted
 
